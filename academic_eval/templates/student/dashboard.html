@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Dashboard — Academic Evaluation</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% include 'shared/base.html' %}
+<style>
+.hero-row {
+  display: grid;
+  grid-template-columns: 340px 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+/* CGPA Ring Card */
+.cgpa-card {
+  background: var(--navy);
+  border-radius: 20px;
+  padding: 32px 28px;
+  color: white;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.cgpa-card::before {
+  content: '';
+  position: absolute;
+  width: 220px; height: 220px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 50%;
+  top: -60px; right: -60px;
+}
+.cgpa-card::after {
+  content: '';
+  position: absolute;
+  width: 150px; height: 150px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 50%;
+  bottom: -40px; left: -30px;
+}
+.ring-wrapper {
+  position: relative;
+  width: 160px; height: 160px;
+  margin: 0 auto 20px;
+  z-index: 1;
+}
+.ring-wrapper svg { position: absolute; top: 0; left: 0; transform: rotate(-90deg); }
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.ring-cgpa {
+  font-family: 'DM Serif Display', serif;
+  font-size: 38px;
+  color: white;
+  line-height: 1;
+}
+.ring-label { font-size: 11px; color: rgba(255,255,255,0.55); letter-spacing: 0.08em; margin-top: 4px; }
+.cgpa-student-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  z-index: 1;
+}
+.cgpa-reg { font-size: 12px; color: rgba(255,255,255,0.5); z-index: 1; margin-bottom: 18px; }
+.cgpa-meta {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; width: 100%; z-index: 1;
+}
+.cgpa-meta-item {
+  background: rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 10px;
+}
+.cgpa-meta-item .mval { font-size: 18px; font-weight: 700; }
+.cgpa-meta-item .mlbl { font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+.scholars-badge {
+  margin-top: 14px;
+  z-index: 1;
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.scholars-badge.member { background: var(--gold); color: var(--navy); }
+.scholars-badge.reach { background: rgba(245,158,11,0.2); color: var(--gold); border: 1px solid rgba(245,158,11,0.3); }
+.scholars-badge.work { background: rgba(99,102,241,0.2); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+
+/* Progress bar card */
+.progress-card { display: flex; flex-direction: column; gap: 0; }
+.progress-header { margin-bottom: 20px; }
+.credit-bar-wrap { margin-bottom: 18px; }
+.credit-bar-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; }
+.credit-bar-label span { color: var(--muted); }
+.credit-bar-label strong { color: var(--text); }
+.bar-track {
+  height: 10px; background: var(--bg);
+  border-radius: 10px; overflow: hidden;
+}
+.bar-fill {
+  height: 100%; border-radius: 10px;
+  transition: width 1s ease;
+  background: linear-gradient(90deg, var(--blue), var(--green));
+}
+.sem-gpa-mini {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: 6px; margin-top: auto;
+}
+.sem-mini-item {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 6px;
+  text-align: center;
+  border: 1.5px solid var(--border);
+}
+.sem-mini-item.current { border-color: var(--blue); background: var(--blue-light); }
+.sem-mini-item .sm-num { font-size: 10px; color: var(--muted); }
+.sem-mini-item .sm-gpa { font-size: 15px; font-weight: 700; color: var(--text); }
+.sem-mini-item.current .sm-gpa { color: var(--blue); }
+
+/* Chart card */
+.chart-card { display: flex; flex-direction: column; }
+
+/* Second row */
+.second-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+/* Scholars target card */
+.scholars-progress {
+  background: linear-gradient(135deg, #1e1b4b, #312e81);
+  border-radius: 16px;
+  padding: 26px;
+  color: white;
+}
+.scholars-progress h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.scholars-progress .sp-sub { font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 20px; }
+.sp-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.sp-label { font-size: 13px; color: rgba(255,255,255,0.7); }
+.sp-val { font-size: 14px; font-weight: 700; }
+.sp-bar-track { height: 8px; background: rgba(255,255,255,0.1); border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+.sp-bar-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, #818cf8, #c4b5fd); transition: width 1s ease; }
+.sp-target {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.06); border-radius: 10px; padding: 14px;
+}
+.sp-target .t-icon { font-size: 24px; }
+.sp-target .t-text { font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.5; }
+.sp-target .t-text strong { color: #c4b5fd; }
+
+/* Arrear table */
+.arrear-empty {
+  text-align: center; padding: 40px;
+  color: var(--muted);
+}
+.arrear-empty .ae-icon { font-size: 40px; margin-bottom: 10px; }
+
+/* Badges grid */
+.badges-section { margin-bottom: 24px; }
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.badge-card {
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 14px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.badge-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+.badge-card.earned { border-color: var(--gold); background: var(--gold-light); }
+.badge-card.locked { opacity: 0.4; filter: grayscale(1); }
+.badge-icon { font-size: 32px; margin-bottom: 10px; }
+.badge-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.badge-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+.badge-date { font-size: 10px; color: var(--gold); margin-top: 6px; font-weight: 600; }
+
+/* Quick actions */
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.quick-action {
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  text-align: center;
+  text-decoration: none;
+  color: var(--text);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.quick-action:hover { border-color: var(--blue); background: var(--blue-light); }
+.qa-icon { font-size: 26px; margin-bottom: 8px; }
+.qa-label { font-size: 13px; font-weight: 600; }
+
+@media (max-width: 1100px) {
+  .hero-row { grid-template-columns: 1fr 1fr; }
+  .chart-card { grid-column: 1 / -1; }
+  .quick-actions { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .hero-row { grid-template-columns: 1fr; }
+  .second-row { grid-template-columns: 1fr; }
+  .badges-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">R</div>
+    <div>
+      <div class="logo-name">REC Academic</div>
+      <div class="logo-dept">Student Portal</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">Overview</div>
+  <a class="nav-item active" href="/student/dashboard"><span class="nav-icon">🏠</span> Dashboard</a>
+  <a class="nav-item" href="/student/semester/1"><span class="nav-icon">📚</span> Semester Records</a>
+  <a class="nav-item" href="/student/simulator"><span class="nav-icon">🧮</span> Grade Simulator</a>
+
+  <div class="sidebar-section">Insights</div>
+  <a class="nav-item" href="#analytics" onclick="scrollTo('#analytics')"><span class="nav-icon">📊</span> GPA Trend</a>
+  <a class="nav-item" href="#arrears"><span class="nav-icon">⚠️</span> Arrear Tracker <span class="nav-badge" id="arrearBadgeCount" style="display:none">0</span></a>
+  <a class="nav-item" href="#badges"><span class="nav-icon">🏆</span> My Badges</a>
+  <a class="nav-item" href="#scholars"><span class="nav-icon">⭐</span> Scholars Program</a>
+
+  <div class="sidebar-section">Semesters</div>
+  <div id="semNavLinks"></div>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user" id="sidebarUser">
+      <div class="user-avatar">--</div>
+      <div class="user-info">
+        <div class="user-name">Loading...</div>
+        <div class="user-role">Student</div>
+      </div>
+      <button class="btn-logout" onclick="logout()" title="Logout">⎋</button>
+    </div>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main-content">
+  <div class="topbar">
+    <div class="topbar-title">🏠 My Dashboard</div>
+    <div class="topbar-right">
+      <a href="/student/simulator" class="btn btn-outline btn-sm">🧮 Simulator</a>
+      <button class="btn btn-primary btn-sm" id="transcriptBtn">📄 Transcript</button>
+    </div>
+  </div>
+
+  <div class="page-body">
+
+    <!-- Scholars / Status Banner -->
+    <div id="scholarsBanner"></div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <a class="quick-action" href="/student/semester/1">
+        <div class="qa-icon">📖</div>
+        <div class="qa-label">Enter Marks</div>
+      </a>
+      <a class="quick-action" href="/student/simulator">
+        <div class="qa-icon">🧮</div>
+        <div class="qa-label">Simulate Grades</div>
+      </a>
+      <a class="quick-action" href="#arrears">
+        <div class="qa-icon">⚠️</div>
+        <div class="qa-label">View Arrears</div>
+      </a>
+      <a class="quick-action" href="#badges">
+        <div class="qa-icon">🏅</div>
+        <div class="qa-label">My Badges</div>
+      </a>
+    </div>
+
+    <!-- Hero Row: CGPA + Credits + GPA Chart -->
+    <div class="hero-row">
+
+      <!-- CGPA Ring -->
+      <div class="cgpa-card">
+        <div class="ring-wrapper">
+          <svg width="160" height="160" viewBox="0 0 160 160">
+            <!-- Track -->
+            <circle cx="80" cy="80" r="66" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="12"/>
+            <!-- Fill -->
+            <circle cx="80" cy="80" r="66" fill="none" stroke="var(--gold)"
+              stroke-width="12" stroke-linecap="round"
+              stroke-dasharray="414.69"
+              stroke-dashoffset="414.69"
+              id="cgpaRingFill"/>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-cgpa" id="cgpaRingValue">—</div>
+            <div class="ring-label">CGPA</div>
+          </div>
+        </div>
+        <div class="cgpa-student-name" id="cgpaName">—</div>
+        <div class="cgpa-reg" id="cgpaReg">—</div>
+        <div class="cgpa-meta">
+          <div class="cgpa-meta-item">
+            <div class="mval" id="metaSem">—</div>
+            <div class="mlbl">Current Sem</div>
+          </div>
+          <div class="cgpa-meta-item">
+            <div class="mval" id="metaArrears" style="color:#f87171">—</div>
+            <div class="mlbl">Arrears</div>
+          </div>
+          <div class="cgpa-meta-item">
+            <div class="mval" id="metaCredits">—</div>
+            <div class="mlbl">Credits Done</div>
+          </div>
+          <div class="cgpa-meta-item">
+            <div class="mval" id="metaBadges">—</div>
+            <div class="mlbl">Badges</div>
+          </div>
+        </div>
+        <div class="scholars-badge" id="scholarsChip">—</div>
+      </div>
+
+      <!-- Credit Progress + Sem GPA Grid -->
+      <div class="card progress-card" id="analytics">
+        <div class="progress-header">
+          <div class="card-title">📈 Academic Progress</div>
+        </div>
+        <div class="credit-bar-wrap">
+          <div class="credit-bar-label">
+            <span>Credits Completed</span>
+            <strong id="creditProgressText">0 / 160</strong>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" id="creditBar" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="credit-bar-wrap">
+          <div class="credit-bar-label">
+            <span>Scholars CGPA Target (8.5)</span>
+            <strong id="scholarsProgressText">0 / 8.5</strong>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" id="scholarsBar" style="width:0%;background:linear-gradient(90deg,var(--gold),var(--orange))"></div>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">Semester GPA Breakdown</div>
+        <div class="sem-gpa-mini" id="semGpaMini">
+          <!-- 6 blocks populated by JS -->
+        </div>
+      </div>
+
+      <!-- GPA Trend Chart -->
+      <div class="card chart-card">
+        <div class="card-title">📊 GPA Trend</div>
+        <div class="chart-wrap">
+          <canvas id="gpaChart"></canvas>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;">
+          <div style="font-size:12px;color:var(--muted);">
+            Best GPA: <strong id="bestGpa" style="color:var(--green)">—</strong> (Sem <span id="bestGpaSem">—</span>)
+          </div>
+          <div style="font-size:12px;color:var(--muted);">
+            Latest GPA: <strong id="latestGpa" style="color:var(--blue)">—</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Scholars Target + Arrears -->
+    <div class="second-row">
+
+      <!-- Scholars Program Tracker -->
+      <div class="scholars-progress" id="scholars">
+        <h3>⭐ Scholars Program Tracker</h3>
+        <div class="sp-sub">CGPA ≥ 8.5 with zero standing arrears</div>
+
+        <div class="sp-row">
+          <span class="sp-label">Your CGPA</span>
+          <span class="sp-val" id="spCurrentCgpa">—</span>
+        </div>
+        <div class="sp-row" style="margin-bottom:6px;">
+          <span class="sp-label">Target CGPA</span>
+          <span class="sp-val" style="color:#c4b5fd">8.50</span>
+        </div>
+        <div class="sp-bar-track">
+          <div class="sp-bar-fill" id="spBarFill" style="width:0%"></div>
+        </div>
+
+        <div class="sp-row">
+          <span class="sp-label">Semesters remaining</span>
+          <span class="sp-val" id="spRemaining">—</span>
+        </div>
+        <div class="sp-row" style="margin-bottom:16px;">
+          <span class="sp-label">Avg GPA needed</span>
+          <span class="sp-val" id="spNeeded" style="color:#c4b5fd">—</span>
+        </div>
+
+        <div class="sp-target" id="spTarget">
+          <div class="t-icon">🎯</div>
+          <div class="t-text" id="spMessage">Loading...</div>
+        </div>
+      </div>
+
+      <!-- Arrear Tracker -->
+      <div class="card" id="arrears">
+        <div class="card-title">⚠️ Arrear Tracker <span id="arrearCount" class="pill pill-red" style="display:none"></span></div>
+        <div id="arrearContent">
+          <div class="arrear-empty">
+            <div class="ae-icon">✨</div>
+            <div>Loading arrear records...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Badges -->
+    <div class="badges-section" id="badges">
+      <div class="card-title" style="margin-bottom:16px;">🏆 My Badges & Milestones</div>
+      <div class="badges-grid" id="badgesGrid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+  </div><!-- /page-body -->
+</div><!-- /main-content -->
+
+<script>
+// All possible badges (for locked state rendering)
+const ALL_BADGES = [
+  { code: 'first_semester', icon: '🎓', name: 'Fresh Start', desc: 'Completed first semester' },
+  { code: 'perfect_gpa',   icon: '⭐', name: 'Perfect Score', desc: 'Achieved 10.0 GPA in a semester' },
+  { code: 'scholars_entry',icon: '🏆', name: 'Scholars Club', desc: 'CGPA ≥ 8.5 with zero arrears' },
+  { code: 'scholars_maintained', icon: '🔥', name: 'Scholar Streak', desc: 'Maintained Scholars for 2+ semesters' },
+  { code: 'no_arrears',    icon: '✨', name: 'Clean Slate', desc: 'Semester completed with no arrears' },
+  { code: 'improvement',   icon: '📈', name: 'Comeback Kid', desc: 'GPA improved by 1.0+ from previous sem' },
+  { code: 'all_pass',      icon: '🎯', name: 'Full Clear', desc: 'All subjects passed in a semester' },
+  { code: 'cgpa_8',        icon: '🌟', name: 'Excellence Award', desc: 'CGPA above 8.0' },
+  { code: 'cgpa_9',        icon: '💫', name: 'Academic Star', desc: 'CGPA above 9.0' },
+];
+
+let gpaChart = null;
+let studentData = null;
+
+async function init() {
+  studentData = await API.get('/api/student/dashboard');
+  if (!studentData) return;
+
+  renderCgpaCard(studentData);
+  renderProgressSection(studentData);
+  renderGpaChart(studentData.semester_gpas);
+  renderScholarsBanner(studentData.scholars_info, studentData.cgpa);
+  renderScholarsTracker(studentData);
+  renderArrears(studentData.arrear_history, studentData.standing_arrears);
+  renderBadges(studentData.badges);
+  buildSemNav(studentData.semester_gpas);
+
+  // Transcript button
+  document.getElementById('transcriptBtn').onclick = () => {
+    window.open(`/api/reports/transcript/${studentData.student.id}`, '_blank');
+  };
+}
+
+function renderCgpaCard(data) {
+  const cgpa = data.cgpa?.overall_cgpa || 0;
+  const student = data.student;
+
+  document.getElementById('cgpaRingValue').textContent = cgpa.toFixed(2);
+  document.getElementById('cgpaName').textContent = student.name;
+  document.getElementById('cgpaReg').textContent = student.reg_no;
+  document.getElementById('metaSem').textContent = `Sem ${student.current_semester}`;
+  document.getElementById('metaArrears').textContent = data.standing_arrears || 0;
+  document.getElementById('metaCredits').textContent = data.cgpa?.total_credits_completed || 0;
+  document.getElementById('metaBadges').textContent = data.badges?.length || 0;
+
+  // Animate ring
+  const circumference = 2 * Math.PI * 66; // 414.69
+  const progress = Math.min(cgpa / 10, 1);
+  const offset = circumference * (1 - progress);
+  setTimeout(() => {
+    const ring = document.getElementById('cgpaRingFill');
+    ring.style.transition = 'stroke-dashoffset 1.2s ease';
+    ring.style.strokeDashoffset = offset;
+    // Color by CGPA
+    if (cgpa >= 8.5) ring.style.stroke = '#f59e0b';
+    else if (cgpa >= 7.0) ring.style.stroke = '#10b981';
+    else if (cgpa >= 5.0) ring.style.stroke = '#f97316';
+    else ring.style.stroke = '#ef4444';
+  }, 200);
+
+  // Scholars chip
+  const chip = document.getElementById('scholarsChip');
+  const info = data.scholars_info;
+  if (info?.state === 'scholars') {
+    chip.className = 'scholars-badge member';
+    chip.innerHTML = '🏆 Scholars Member';
+  } else if (info?.state === 'within_reach') {
+    chip.className = 'scholars-badge reach';
+    chip.innerHTML = `🎯 ${info.gap} pts to Scholars`;
+  } else {
+    chip.className = 'scholars-badge work';
+    chip.innerHTML = `💪 CGPA ${cgpa.toFixed(2)} / 10`;
+  }
+}
+
+function renderProgressSection(data) {
+  const cgpa = data.cgpa;
+  const pct = Math.min((cgpa?.total_credits_completed || 0) / 160 * 100, 100);
+  document.getElementById('creditProgressText').textContent =
+    `${cgpa?.total_credits_completed || 0} / 160`;
+  setTimeout(() => {
+    document.getElementById('creditBar').style.width = pct + '%';
+  }, 300);
+
+  const cgpaVal = cgpa?.overall_cgpa || 0;
+  const schPct = Math.min(cgpaVal / 8.5 * 100, 100);
+  document.getElementById('scholarsProgressText').textContent = `${cgpaVal.toFixed(2)} / 8.5`;
+  setTimeout(() => {
+    document.getElementById('scholarsBar').style.width = schPct + '%';
+  }, 400);
+
+  // Sem GPA mini grid
+  const semGpas = data.semester_gpas || [];
+  const gpaMap = {};
+  semGpas.forEach(s => { gpaMap[s.semester] = s.gpa; });
+
+  let html = '';
+  for (let i = 1; i <= 6; i++) {
+    const g = gpaMap[i];
+    const isCurrent = !g && i === (data.student?.current_semester || 1);
+    html += `
+      <a href="/student/semester/${i}" class="sem-mini-item ${isCurrent ? 'current' : ''}" style="text-decoration:none;color:inherit;">
+        <div class="sm-num">Sem ${i}</div>
+        <div class="sm-gpa" style="color:${g ? cgpaColor(g) : 'var(--muted)'}">${g ? parseFloat(g).toFixed(1) : '—'}</div>
+      </a>`;
+  }
+  document.getElementById('semGpaMini').innerHTML = html;
+}
+
+function renderGpaChart(semGpas) {
+  if (!semGpas || semGpas.length === 0) {
+    document.querySelector('.chart-wrap').innerHTML =
+      '<div style="text-align:center;padding:60px;color:var(--muted);font-size:13px;">Enter marks to see your GPA trend</div>';
+    return;
+  }
+
+  const sorted = [...semGpas].sort((a,b) => a.semester - b.semester);
+  const labels = sorted.map(s => `Sem ${s.semester}`);
+  const values = sorted.map(s => parseFloat(s.gpa));
+
+  const best = Math.max(...values);
+  const bestSem = sorted[values.indexOf(best)]?.semester;
+  document.getElementById('bestGpa').textContent = best.toFixed(2);
+  document.getElementById('bestGpaSem').textContent = bestSem;
+  document.getElementById('latestGpa').textContent = values[values.length - 1].toFixed(2);
+
+  const ctx = document.getElementById('gpaChart').getContext('2d');
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+  gradient.addColorStop(0, 'rgba(37,99,235,0.25)');
+  gradient.addColorStop(1, 'rgba(37,99,235,0)');
+
+  gpaChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'GPA',
+        data: values,
+        borderColor: '#2563eb',
+        backgroundColor: gradient,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: values.map(v =>
+          v >= 8.5 ? '#f59e0b' : v >= 7 ? '#10b981' : v >= 5 ? '#f97316' : '#ef4444'),
+        pointRadius: 6,
+        pointHoverRadius: 9,
+        borderWidth: 2.5
+      }, {
+        label: 'Scholars Target',
+        data: Array(labels.length).fill(8.5),
+        borderColor: 'rgba(245,158,11,0.4)',
+        borderDash: [6,4],
+        pointRadius: 0,
+        fill: false,
+        borderWidth: 1.5
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `GPA: ${ctx.parsed.y.toFixed(2)}`
+          }
+        }
+      },
+      scales: {
+        y: {
+          min: 0, max: 10,
+          ticks: { stepSize: 2, font: { size: 11 } },
+          grid: { color: '#f1f5f9' }
+        },
+        x: {
+          ticks: { font: { size: 11 } },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+}
+
+function renderScholarsBanner(info, cgpa) {
+  const el = document.getElementById('scholarsBanner');
+  if (!info || (info.state !== 'scholars' && (cgpa?.overall_cgpa || 0) === 0)) return;
+
+  if (info.state === 'scholars') {
+    el.className = 'scholars-banner';
+    el.innerHTML = `
+      <div class="banner-icon">🏆</div>
+      <div class="banner-text">
+        <strong>Congratulations! You are a Scholars Program member.</strong>
+        <span>${info.sub_message}</span>
+      </div>`;
+  } else if (info.state === 'within_reach') {
+    el.className = 'info-banner';
+    el.innerHTML = `
+      <div class="banner-icon">🎯</div>
+      <div class="banner-text">
+        <strong>${info.message}</strong>
+        <span>${info.sub_message}</span>
+      </div>`;
+  } else {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = 'flex';
+}
+
+function renderScholarsTracker(data) {
+  const cgpa = data.cgpa?.overall_cgpa || 0;
+  const plan = data.scholars_plan || {};
+
+  document.getElementById('spCurrentCgpa').textContent = cgpa.toFixed(2);
+  setTimeout(() => {
+    document.getElementById('spBarFill').style.width = Math.min(cgpa / 8.5 * 100, 100) + '%';
+  }, 400);
+  document.getElementById('spRemaining').textContent = plan.remaining_semesters ?? '—';
+  document.getElementById('spNeeded').textContent =
+    plan.needed_avg_gpa != null ? plan.needed_avg_gpa.toFixed(2) : 'Already achieved!';
+  document.getElementById('spMessage').innerHTML =
+    plan.achievable
+      ? `<strong>${plan.message || 'Keep going!'}</strong>`
+      : `<strong style="color:#f87171">Scholars CGPA of 8.5 not achievable from current standing. Focus on maximum performance each semester.</strong>`;
+}
+
+function renderArrears(arrears, standingCount) {
+  const el = document.getElementById('arrearContent');
+  const countEl = document.getElementById('arrearCount');
+  const badgeEl = document.getElementById('arrearBadgeCount');
+
+  if (!arrears || arrears.length === 0) {
+    el.innerHTML = `
+      <div class="arrear-empty">
+        <div class="ae-icon">✅</div>
+        <strong>No arrears found!</strong>
+        <div style="font-size:12px;margin-top:4px;">Keep it up — zero arrears keeps Scholars eligibility open.</div>
+      </div>`;
+    return;
+  }
+
+  if (standingCount > 0) {
+    countEl.textContent = `${standingCount} active`;
+    countEl.style.display = 'inline-flex';
+    badgeEl.textContent = standingCount;
+    badgeEl.style.display = 'block';
+  }
+
+  const rows = arrears.map(a => `
+    <tr>
+      <td><span style="font-size:11px;font-weight:700;color:var(--muted);background:var(--bg);padding:2px 7px;border-radius:5px;">${a.subject_code}</span></td>
+      <td>${a.subject_name}</td>
+      <td style="text-align:center;"><span class="grade-chip ${gradeClass(a.grade_obtained)}">${a.grade_obtained || 'F'}</span></td>
+      <td>${a.academic_year}</td>
+      <td>${a.cleared
+        ? `<span class="pill pill-green">✓ Cleared (${a.cleared_grade})</span>`
+        : `<span class="pill pill-red">⚡ Standing</span>`}</td>
+    </tr>`).join('');
+
+  el.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Code</th><th>Subject</th><th>Grade</th><th>Year</th><th>Status</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderBadges(earnedBadges) {
+  const earnedCodes = new Set((earnedBadges || []).map(sb => sb.badge?.code));
+  const earnedMap = {};
+  (earnedBadges || []).forEach(sb => { if (sb.badge) earnedMap[sb.badge.code] = sb; });
+
+  const html = ALL_BADGES.map(b => {
+    const isEarned = earnedCodes.has(b.code);
+    const sb = earnedMap[b.code];
+    const dateStr = sb?.awarded_at
+      ? new Date(sb.awarded_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })
+      : '';
+    return `
+      <div class="badge-card ${isEarned ? 'earned' : 'locked'}">
+        <div class="badge-icon">${b.icon}</div>
+        <div class="badge-name">${b.name}</div>
+        <div class="badge-desc">${b.desc}</div>
+        ${isEarned ? `<div class="badge-date">Earned ${dateStr}</div>` : '<div class="badge-date" style="color:var(--muted)">Locked</div>'}
+      </div>`;
+  }).join('');
+
+  document.getElementById('badgesGrid').innerHTML = html;
+}
+
+function buildSemNav(semGpas) {
+  const gpaMap = {};
+  (semGpas || []).forEach(s => { gpaMap[s.semester] = s.gpa; });
+  let html = '';
+  for (let i = 1; i <= 6; i++) {
+    const g = gpaMap[i];
+    const color = g ? `style="color:${cgpaColor(parseFloat(g))}"` : '';
+    html += `<a class="nav-item" href="/student/semester/${i}">
+      <span class="nav-icon">📘</span>
+      Semester ${i}
+      ${g ? `<span ${color} style="margin-left:auto;font-size:11px;font-weight:700">${parseFloat(g).toFixed(1)}</span>` : ''}
+    </a>`;
+  }
+  document.getElementById('semNavLinks').innerHTML = html;
+}
+
+init();
+</script>
+</body>
+</html>

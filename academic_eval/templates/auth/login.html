@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Academic Evaluation System — REC</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #0f1b35;
+    --navy-mid: #162242;
+    --blue: #2563eb;
+    --blue-light: #3b82f6;
+    --gold: #f59e0b;
+    --green: #10b981;
+    --red: #ef4444;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --white: #ffffff;
+    --bg: #f8fafc;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Animated background */
+  .bg-canvas {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, var(--navy) 0%, #1e3a6e 50%, #0f1b35 100%);
+    z-index: 0;
+  }
+  .bg-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.15;
+    animation: pulse 6s ease-in-out infinite;
+  }
+  .bg-orb-1 { width: 500px; height: 500px; background: #3b82f6; top: -100px; right: -100px; animation-delay: 0s; }
+  .bg-orb-2 { width: 400px; height: 400px; background: #f59e0b; bottom: -100px; left: -100px; animation-delay: 2s; }
+  .bg-orb-3 { width: 300px; height: 300px; background: #10b981; top: 40%; left: 30%; animation-delay: 4s; }
+  @keyframes pulse { 0%,100%{transform:scale(1);opacity:.15;} 50%{transform:scale(1.1);opacity:.22;} }
+
+  /* Grid overlay */
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Container */
+  .container {
+    position: relative;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 100vh;
+    width: 100%;
+  }
+
+  /* Left panel */
+  .panel-left {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 60px;
+    color: white;
+  }
+
+  .logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 48px;
+  }
+  .logo-icon {
+    width: 52px; height: 52px;
+    background: var(--gold);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--navy);
+    font-family: 'DM Serif Display', serif;
+    flex-shrink: 0;
+  }
+  .logo-text { line-height: 1.2; }
+  .logo-text strong { display: block; font-size: 18px; font-weight: 600; letter-spacing: 0.02em; }
+  .logo-text span { font-size: 13px; opacity: 0.7; letter-spacing: 0.05em; }
+
+  .hero-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(36px, 4vw, 52px);
+    line-height: 1.15;
+    margin-bottom: 24px;
+    color: white;
+  }
+  .hero-title em { color: var(--gold); font-style: normal; }
+
+  .hero-sub {
+    font-size: 16px;
+    line-height: 1.7;
+    opacity: 0.75;
+    max-width: 420px;
+    margin-bottom: 48px;
+  }
+
+  .features {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .feature {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    opacity: 0.85;
+  }
+  .feature-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--gold);
+    flex-shrink: 0;
+  }
+
+  /* Right panel — login card */
+  .panel-right {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(20px);
+    border-left: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .login-card {
+    background: white;
+    border-radius: 24px;
+    padding: 48px 44px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 32px 64px rgba(0,0,0,0.25);
+  }
+
+  .card-header { margin-bottom: 36px; }
+  .card-header h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    color: var(--navy);
+    margin-bottom: 8px;
+  }
+  .card-header p { font-size: 14px; color: var(--muted); }
+
+  /* Role tabs */
+  .role-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 28px;
+    background: var(--bg);
+    padding: 6px;
+    border-radius: 12px;
+  }
+  .role-tab {
+    padding: 10px 8px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .role-tab .tab-icon { font-size: 18px; }
+  .role-tab.active {
+    background: var(--navy);
+    color: white;
+  }
+
+  /* Form */
+  .form-group { margin-bottom: 20px; }
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .form-group input {
+    width: 100%;
+    padding: 13px 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: white;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+  .form-group input:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  }
+
+  .btn-login {
+    width: 100%;
+    padding: 14px;
+    background: var(--navy);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+    letter-spacing: 0.02em;
+  }
+  .btn-login:hover { background: #1e3a6e; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(15,27,53,0.3); }
+  .btn-login:active { transform: translateY(0); }
+  .btn-login:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  .error-msg {
+    background: #fef2f2;
+    border: 1px solid #fee2e2;
+    color: var(--red);
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+  .error-msg.show { display: block; }
+
+  .demo-credentials {
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .demo-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+  }
+  .demo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .demo-item {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border: 1px solid var(--border);
+  }
+  .demo-item:hover { background: #e8f0fe; border-color: var(--blue); }
+  .demo-item .demo-role { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .demo-item .demo-email { font-size: 11px; color: var(--text); margin-top: 2px; }
+
+  /* Spinner */
+  .spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 768px) {
+    .container { grid-template-columns: 1fr; }
+    .panel-left { display: none; }
+    .panel-right { min-height: 100vh; }
+  }
+</style>
+</head>
+<body>
+<div class="bg-canvas">
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+  <div class="bg-grid"></div>
+</div>
+
+<div class="container">
+  <!-- Left Panel -->
+  <div class="panel-left">
+    <div class="logo-wrap">
+      <div class="logo-icon">R</div>
+      <div class="logo-text">
+        <strong>Rajalakshmi Engineering College</strong>
+        <span>Dept. of Computer Science & Engineering</span>
+      </div>
+    </div>
+
+    <h1 class="hero-title">
+      Academic<br>
+      <em>Performance</em><br>
+      Evaluation System
+    </h1>
+
+    <p class="hero-sub">
+      A unified platform for students, mentors, and administrators to track, analyse, and improve academic outcomes — semester by semester.
+    </p>
+
+    <div class="features">
+      <div class="feature"><div class="feature-dot"></div><span>Real-time CGPA & GPA calculation with REC grading</span></div>
+      <div class="feature"><div class="feature-dot"></div><span>Scholars Program tracking (CGPA ≥ 8.5)</span></div>
+      <div class="feature"><div class="feature-dot"></div><span>Mentor monitoring for 30 assigned students</span></div>
+      <div class="feature"><div class="feature-dot"></div><span>Arrear tracking and academic evaluation history</span></div>
+      <div class="feature"><div class="feature-dot"></div><span>Personalised end-semester mark recommendations</span></div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="panel-right">
+    <div class="login-card">
+      <div class="card-header">
+        <h2>Welcome back</h2>
+        <p>Sign in to your academic dashboard</p>
+      </div>
+
+      <!-- Role Selector -->
+      <div class="role-tabs">
+        <button class="role-tab active" onclick="setRole('admin', this)">
+          <span class="tab-icon">🛡️</span> Admin
+        </button>
+        <button class="role-tab" onclick="setRole('mentor', this)">
+          <span class="tab-icon">👨‍🏫</span> Mentor
+        </button>
+        <button class="role-tab" onclick="setRole('student', this)">
+          <span class="tab-icon">🎓</span> Student
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label>Email Address</label>
+        <input type="email" id="email" placeholder="yourname@rec.edu" autocomplete="email">
+      </div>
+
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter')login()">
+      </div>
+
+      <button class="btn-login" id="loginBtn" onclick="login()">Sign In</button>
+      <div class="error-msg" id="errorMsg"></div>
+
+      <!-- Demo Credentials -->
+      <div class="demo-credentials">
+        <div class="demo-title">Demo Accounts</div>
+        <div class="demo-grid">
+          <div class="demo-item" onclick="fillDemo('admin@rec.edu','Admin@123','admin')">
+            <div class="demo-role">Admin</div>
+            <div class="demo-email">admin@rec.edu</div>
+          </div>
+          <div class="demo-item" onclick="fillDemo('mentor1@rec.edu','Mentor@123','mentor')">
+            <div class="demo-role">Mentor</div>
+            <div class="demo-email">mentor1@rec.edu</div>
+          </div>
+          <div class="demo-item" onclick="fillDemo('student1@rec.edu','Student@123','student')">
+            <div class="demo-role">Student</div>
+            <div class="demo-email">student1@rec.edu</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let selectedRole = 'admin';
+
+  function setRole(role, el) {
+    selectedRole = role;
+    document.querySelectorAll('.role-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  function fillDemo(email, pass, role) {
+    document.getElementById('email').value = email;
+    document.getElementById('password').value = pass;
+    const tabs = document.querySelectorAll('.role-tab');
+    const roleIdx = { admin: 0, mentor: 1, student: 2 };
+    tabs.forEach(t => t.classList.remove('active'));
+    tabs[roleIdx[role]].classList.add('active');
+    selectedRole = role;
+  }
+
+  async function login() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const btn = document.getElementById('loginBtn');
+    const errEl = document.getElementById('errorMsg');
+
+    if (!email || !password) {
+      showError('Please enter your email and password.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Signing in...';
+    errEl.classList.remove('show');
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showError(data.error || 'Login failed. Check your credentials.');
+        return;
+      }
+
+      // Store tokens
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('refresh_token', data.refresh_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      // Redirect by role
+      const redirectMap = {
+        admin: '/admin/dashboard',
+        mentor: '/mentor/dashboard',
+        student: '/student/dashboard'
+      };
+      window.location.href = redirectMap[data.role] || '/';
+
+    } catch (err) {
+      showError('Network error. Please try again.');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Sign In';
+    }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  // Check if already logged in
+  if (localStorage.getItem('access_token')) {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const map = { admin: '/admin/dashboard', mentor: '/mentor/dashboard', student: '/student/dashboard' };
+    if (map[user.role]) window.location.href = map[user.role];
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — Academic Evaluation</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% include 'shared/base.html' %}
+<style>
+/* ── Admin-specific styles ─────────────────────────────────── */
+.top-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card-admin {
+  background: white;
+  border-radius: 16px;
+  padding: 22px 20px;
+  border: 1.5px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.stat-card-admin:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+.stat-card-admin::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--accent, var(--blue));
+}
+.sca-icon { font-size: 26px; margin-bottom: 12px; }
+.sca-val { font-family: 'DM Serif Display', serif; font-size: 36px; line-height: 1; margin-bottom: 4px; color: var(--text); }
+.sca-lbl { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+.charts-row {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+/* Status distribution donut */
+.donut-legend {
+  display: flex; flex-direction: column; gap: 10px; margin-top: 16px;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 10px; font-size: 13px;
+}
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legend-val { margin-left: auto; font-weight: 700; }
+
+.donut-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: center; }
+
+/* Evaluation runner */
+.eval-runner {
+  background: linear-gradient(135deg, var(--navy), #1e3a6e);
+  border-radius: 16px;
+  padding: 28px;
+  color: white;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.eval-runner-info h3 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.eval-runner-info p { font-size: 13px; color: rgba(255,255,255,0.65); max-width: 480px; line-height: 1.6; }
+.btn-run-eval {
+  background: var(--gold);
+  color: var(--navy);
+  border: none;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.btn-run-eval:hover { background: #d97706; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.3); }
+.btn-run-eval:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+/* Students section */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.search-wrap {
+  display: flex; gap: 10px; align-items: center;
+}
+.search-input {
+  padding: 9px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  outline: none;
+  width: 220px;
+  transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--blue); }
+.filter-select {
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  background: white;
+}
+
+/* Student row actions */
+.row-actions { display: flex; gap: 6px; }
+.action-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: white;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.action-btn:hover { background: var(--bg); }
+.action-btn.danger:hover { background: var(--red-light); border-color: var(--red); color: var(--red); }
+
+/* Criteria table */
+.criteria-table .criteria-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 1fr 80px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.criteria-row:last-child { border-bottom: none; }
+.criteria-row.header {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted);
+  background: var(--bg);
+  border-radius: 8px 8px 0 0;
+}
+.color-swatch {
+  width: 14px; height: 14px; border-radius: 4px; display: inline-block; margin-right: 8px; vertical-align: middle;
+}
+.criteria-input {
+  width: 80px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  text-align: center;
+  outline: none;
+}
+.criteria-input:focus { border-color: var(--blue); }
+
+/* Pagination */
+.pagination {
+  display: flex; gap: 6px; align-items: center;
+  justify-content: flex-end; margin-top: 16px;
+}
+.page-btn {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: white;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.page-btn:hover { border-color: var(--blue); color: var(--blue); }
+.page-btn.active { background: var(--navy); border-color: var(--navy); color: white; }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Add student modal */
+.modal-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+@media (max-width: 1100px) {
+  .top-stats { grid-template-columns: repeat(3, 1fr); }
+  .charts-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .top-stats { grid-template-columns: 1fr 1fr; }
+  .eval-runner { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<!-- Add Student Modal -->
+<div class="modal-overlay" id="addStudentModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('addStudentModal')">×</button>
+    <div class="modal-title">➕ Add New Student</div>
+    <div class="modal-form-row">
+      <div class="form-group">
+        <label>Full Name</label>
+        <input class="form-control" id="newName" placeholder="Student Name">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input class="form-control" id="newEmail" type="email" placeholder="student@rec.edu">
+      </div>
+      <div class="form-group">
+        <label>Register Number</label>
+        <input class="form-control" id="newRegNo" placeholder="211CS001">
+      </div>
+      <div class="form-group">
+        <label>Batch Year</label>
+        <input class="form-control" id="newBatch" type="number" placeholder="2023">
+      </div>
+      <div class="form-group">
+        <label>Department</label>
+        <select class="form-control" id="newDept">
+          <option value="1">CSE</option>
+          <option value="2">ECE</option>
+          <option value="3">MECH</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Current Semester</label>
+        <select class="form-control" id="newSem">
+          <option>1</option><option>2</option><option>3</option>
+          <option>4</option><option>5</option><option>6</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Assign Mentor <span class="label-hint">(optional)</span></label>
+        <select class="form-control" id="newMentor">
+          <option value="">No mentor assigned</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+      <button class="btn btn-outline" onclick="closeModal('addStudentModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="createStudent()">Create Student</button>
+    </div>
+  </div>
+</div>
+
+<!-- Run Evaluation Modal -->
+<div class="modal-overlay" id="evalModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('evalModal')">×</button>
+    <div class="modal-title">🏃 Run Annual Evaluation</div>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:20px;">
+      This will evaluate all students based on their current CGPA and arrear counts, using the configured criteria.
+    </p>
+    <div class="form-group">
+      <label>Academic Year</label>
+      <input class="form-control" id="evalYear" placeholder="2024-25" value="2024-25">
+    </div>
+    <div id="evalResults" style="display:none;"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+      <button class="btn btn-outline" onclick="closeModal('evalModal')">Cancel</button>
+      <button class="btn btn-gold" id="evalConfirmBtn" onclick="runEvaluation()">▶ Run Evaluation</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">R</div>
+    <div>
+      <div class="logo-name">REC Academic</div>
+      <div class="logo-dept">Admin Panel</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">Overview</div>
+  <a class="nav-item active" href="/admin/dashboard"><span class="nav-icon">🏠</span> Dashboard</a>
+  <a class="nav-item" href="#students" onclick="showSection('students')"><span class="nav-icon">👥</span> Students</a>
+  <a class="nav-item" href="#subjects"><span class="nav-icon">📚</span> Subjects / Sem 7-8</a>
+
+  <div class="sidebar-section">Administration</div>
+  <a class="nav-item" href="#evaluation"><span class="nav-icon">🔍</span> Annual Evaluation</a>
+  <a class="nav-item" href="#criteria"><span class="nav-icon">⚙️</span> Criteria Config</a>
+  <a class="nav-item" href="#mentors"><span class="nav-icon">👨‍🏫</span> Mentors</a>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user" id="sidebarUser">
+      <div class="user-avatar">AD</div>
+      <div class="user-info">
+        <div class="user-name">Admin</div>
+        <div class="user-role">Administrator</div>
+      </div>
+      <button class="btn-logout" onclick="logout()">⎋</button>
+    </div>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main-content">
+  <div class="topbar">
+    <div class="topbar-title">🛡️ Admin Dashboard</div>
+    <div class="topbar-right">
+      <button class="btn btn-gold btn-sm" onclick="document.getElementById('evalModal').classList.add('open')">▶ Run Evaluation</button>
+      <button class="btn btn-primary btn-sm" onclick="document.getElementById('addStudentModal').classList.add('open')">➕ Add Student</button>
+    </div>
+  </div>
+
+  <div class="page-body">
+
+    <!-- Stat Cards -->
+    <div class="top-stats">
+      <div class="stat-card-admin" style="--accent:#2563eb">
+        <div class="sca-icon">👥</div>
+        <div class="sca-val" id="statTotal">—</div>
+        <div class="sca-lbl">Total Students</div>
+      </div>
+      <div class="stat-card-admin" style="--accent:#10b981">
+        <div class="sca-icon">✅</div>
+        <div class="sca-val" id="statGood">—</div>
+        <div class="sca-lbl">Good Standing</div>
+      </div>
+      <div class="stat-card-admin" style="--accent:#f59e0b">
+        <div class="sca-icon">🏆</div>
+        <div class="sca-val" id="statScholars">—</div>
+        <div class="sca-lbl">Scholars Members</div>
+      </div>
+      <div class="stat-card-admin" style="--accent:#f97316">
+        <div class="sca-icon">⚠️</div>
+        <div class="sca-val" id="statWarning">—</div>
+        <div class="sca-lbl">Academic Warning</div>
+      </div>
+      <div class="stat-card-admin" style="--accent:#ef4444">
+        <div class="sca-icon">🔴</div>
+        <div class="sca-val" id="statProbation">—</div>
+        <div class="sca-lbl">Probation</div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-title">📊 CGPA Distribution</div>
+        <div class="chart-wrap">
+          <canvas id="cgpaDistChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🎯 Status Breakdown</div>
+        <div class="donut-wrap">
+          <div class="chart-wrap" style="height:200px;">
+            <canvas id="statusChart"></canvas>
+          </div>
+          <div class="donut-legend" id="donutLegend"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Evaluation Runner -->
+    <div class="eval-runner" id="evaluation">
+      <div class="eval-runner-info">
+        <h3>🔍 Annual Academic Evaluation</h3>
+        <p>Run the annual evaluation to assess all students based on CGPA and arrear criteria. Results are stored historically and statuses updated in real time.</p>
+      </div>
+      <button class="btn-run-eval" onclick="document.getElementById('evalModal').classList.add('open')">▶ Run Now</button>
+    </div>
+
+    <!-- Students Table -->
+    <div class="card" id="students" style="margin-bottom:24px;">
+      <div class="section-header">
+        <div class="card-title" style="margin-bottom:0">👥 Students</div>
+        <div class="search-wrap">
+          <input class="search-input" id="searchInput" placeholder="Search name or reg no..." oninput="debounceSearch()">
+          <select class="filter-select" id="semFilter" onchange="loadStudents()">
+            <option value="">All Semesters</option>
+            <option>1</option><option>2</option><option>3</option>
+            <option>4</option><option>5</option><option>6</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('addStudentModal').classList.add('open')">➕ Add</button>
+          <label class="btn btn-outline btn-sm" style="cursor:pointer">
+            📤 CSV Upload
+            <input type="file" accept=".csv" style="display:none" onchange="bulkUpload(this)">
+          </label>
+        </div>
+      </div>
+      <div class="table-wrap" id="studentsTable">
+        <div style="text-align:center;padding:40px;color:var(--muted);">Loading students...</div>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+
+    <!-- Criteria Config -->
+    <div class="card" id="criteria" style="margin-bottom:24px;">
+      <div class="section-header">
+        <div class="card-title" style="margin-bottom:0">⚙️ Evaluation Criteria</div>
+        <button class="btn btn-green btn-sm" onclick="saveCriteria()">💾 Save Changes</button>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+        Configure CGPA ranges and arrear thresholds for each academic standing. Saved changes take effect on next evaluation run.
+      </p>
+      <div class="criteria-table">
+        <div class="criteria-row header">
+          <span>Status</span><span>Min CGPA</span><span>Max CGPA</span><span>Max Arrears</span><span>Action Required</span><span></span>
+        </div>
+        <div id="criteriaRows">
+          <div style="text-align:center;padding:30px;color:var(--muted);">Loading criteria...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let currentPage = 1;
+let searchTimeout = null;
+let criteriaData = [];
+let distChart = null;
+let statusChart = null;
+
+async function init() {
+  initSidebar();
+  const dash = await API.get('/api/admin/dashboard');
+  if (!dash) return;
+  renderStats(dash);
+  renderCharts(dash);
+  await loadStudents();
+  await loadCriteria();
+}
+
+function renderStats(d) {
+  document.getElementById('statTotal').textContent    = d.total_students;
+  document.getElementById('statGood').textContent     = d.good_standing;
+  document.getElementById('statScholars').textContent = d.scholars_count;
+  document.getElementById('statWarning').textContent  = d.academic_warning;
+  document.getElementById('statProbation').textContent = d.probation;
+}
+
+function renderCharts(d) {
+  // CGPA Distribution bar chart
+  const dist = d.cgpa_distribution || {};
+  const labels = Object.keys(dist);
+  const values = Object.values(dist);
+
+  const ctx1 = document.getElementById('cgpaDistChart').getContext('2d');
+  distChart = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: labels.map(l => 'CGPA ' + l),
+      datasets: [{
+        data: values,
+        backgroundColor: [
+          '#ef4444','#f97316','#f97316','#eab308','#22c55e','#10b981','#2563eb'
+        ],
+        borderRadius: 8,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0, font: { size: 11 } }, grid: { color: '#f1f5f9' } },
+        x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Status donut
+  const statusLabels = ['Good Standing', 'Scholars', 'Warning', 'Probation'];
+  const statusVals   = [d.good_standing, d.scholars_count, d.academic_warning, d.probation];
+  const statusColors = ['#22c55e', '#f59e0b', '#eab308', '#ef4444'];
+
+  const ctx2 = document.getElementById('statusChart').getContext('2d');
+  statusChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: statusLabels,
+      datasets: [{ data: statusVals, backgroundColor: statusColors, borderWidth: 2, borderColor: 'white' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      cutout: '65%'
+    }
+  });
+
+  // Legend
+  document.getElementById('donutLegend').innerHTML = statusLabels.map((l, i) => `
+    <div class="legend-item">
+      <div class="legend-dot" style="background:${statusColors[i]}"></div>
+      <span>${l}</span>
+      <span class="legend-val">${statusVals[i]}</span>
+    </div>`).join('');
+}
+
+async function loadStudents(page = 1) {
+  currentPage = page;
+  const search = document.getElementById('searchInput').value;
+  const sem    = document.getElementById('semFilter').value;
+
+  let url = `/api/admin/students?page=${page}&per_page=15`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+  if (sem)    url += `&semester=${sem}`;
+
+  const data = await API.get(url);
+  if (!data) return;
+
+  if (data.students.length === 0) {
+    document.getElementById('studentsTable').innerHTML =
+      '<div style="text-align:center;padding:40px;color:var(--muted);">No students found.</div>';
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  const rows = data.students.map(s => {
+    const cgpa = parseFloat(s.cgpa || 0).toFixed(2);
+    const statusStyle = cgpa >= 7 ? 'pill-green' : cgpa >= 5 ? 'pill-yellow' : 'pill-red';
+    const statusLabel = cgpa >= 8.5 ? '🏆 Scholars' : cgpa >= 7 ? 'Good' : cgpa >= 5 ? 'Warning' : 'Probation';
+    return `
+      <tr>
+        <td><span style="font-size:11px;font-weight:700;color:var(--muted);background:var(--bg);padding:2px 7px;border-radius:5px">${s.reg_no}</span></td>
+        <td><strong>${s.name}</strong></td>
+        <td>${s.department?.code || '—'}</td>
+        <td style="text-align:center">Sem ${s.current_semester}</td>
+        <td style="text-align:center"><strong style="color:${cgpaColor(parseFloat(cgpa))}">${cgpa}</strong></td>
+        <td><span class="pill ${statusStyle}">${statusLabel}</span></td>
+        <td>${s.mentor_name || '<span style="color:var(--muted)">—</span>'}</td>
+        <td>
+          <div class="row-actions">
+            <button class="action-btn" onclick="viewStudent(${s.id})">👁 View</button>
+            <button class="action-btn" onclick="editStudent(${s.id}, '${s.name}')">✏️</button>
+            <button class="action-btn danger" onclick="deleteStudent(${s.id}, '${s.name}')">🗑</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('studentsTable').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Reg No</th><th>Name</th><th>Dept</th><th>Semester</th><th>CGPA</th><th>Status</th><th>Mentor</th><th>Actions</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  // Pagination
+  const totalPages = data.pages;
+  let pHtml = `<span style="font-size:12px;color:var(--muted);margin-right:8px;">Page ${currentPage} of ${totalPages}</span>`;
+  if (currentPage > 1) pHtml += `<button class="page-btn" onclick="loadStudents(${currentPage-1})">‹</button>`;
+  for (let i = Math.max(1, currentPage-2); i <= Math.min(totalPages, currentPage+2); i++) {
+    pHtml += `<button class="page-btn ${i===currentPage?'active':''}" onclick="loadStudents(${i})">${i}</button>`;
+  }
+  if (currentPage < totalPages) pHtml += `<button class="page-btn" onclick="loadStudents(${currentPage+1})">›</button>`;
+  document.getElementById('pagination').innerHTML = pHtml;
+}
+
+async function loadCriteria() {
+  const data = await API.get('/api/admin/criteria');
+  if (!data) return;
+  criteriaData = data;
+
+  const html = data.map(c => `
+    <div class="criteria-row" id="criteria-row-${c.id}">
+      <div>
+        <span class="color-swatch" style="background:${c.color_code}"></span>
+        <strong style="font-size:13px">${c.status_label}</strong>
+      </div>
+      <input class="criteria-input" id="min-${c.id}" value="${c.min_cgpa}" type="number" step="0.1" min="0" max="10">
+      <input class="criteria-input" id="max-${c.id}" value="${c.max_cgpa}" type="number" step="0.1" min="0" max="10">
+      <input class="criteria-input" id="arr-${c.id}" value="${c.max_arrears}" type="number" min="0" max="99">
+      <span style="font-size:12px;color:var(--muted)">${c.action_required || '—'}</span>
+      <span></span>
+    </div>`).join('');
+
+  document.getElementById('criteriaRows').innerHTML = html;
+}
+
+async function saveCriteria() {
+  for (const c of criteriaData) {
+    const minCgpa = parseFloat(document.getElementById(`min-${c.id}`).value);
+    const maxCgpa = parseFloat(document.getElementById(`max-${c.id}`).value);
+    const maxArr  = parseInt(document.getElementById(`arr-${c.id}`).value);
+
+    const res = await API.put(`/api/admin/criteria/${c.id}`, {
+      min_cgpa: minCgpa, max_cgpa: maxCgpa, max_arrears: maxArr
+    });
+    if (!res.ok) { toast(`Failed to save criteria ${c.id}`, 'error'); return; }
+  }
+  toast('Evaluation criteria saved successfully!', 'success');
+}
+
+async function createStudent() {
+  const payload = {
+    name:             document.getElementById('newName').value,
+    email:            document.getElementById('newEmail').value,
+    reg_no:           document.getElementById('newRegNo').value,
+    batch_year:       parseInt(document.getElementById('newBatch').value),
+    department_id:    parseInt(document.getElementById('newDept').value),
+    current_semester: parseInt(document.getElementById('newSem').value),
+    mentor_id:        document.getElementById('newMentor').value || null
+  };
+
+  if (!payload.name || !payload.email || !payload.reg_no) {
+    toast('Please fill all required fields', 'error'); return;
+  }
+
+  const res = await API.post('/api/admin/students', payload);
+  if (res?.ok) {
+    toast('Student created! Default password: REC@12345', 'success');
+    closeModal('addStudentModal');
+    loadStudents();
+  } else {
+    toast(res?.data?.error || 'Failed to create student', 'error');
+  }
+}
+
+async function deleteStudent(id, name) {
+  if (!confirm(`Delete student "${name}"? This cannot be undone.`)) return;
+  const res = await API.delete(`/api/admin/students/${id}`);
+  if (res.ok) { toast('Student deleted', 'success'); loadStudents(); }
+  else toast('Failed to delete', 'error');
+}
+
+function viewStudent(id) {
+  window.open(`/api/reports/transcript/${id}`, '_blank');
+}
+
+function editStudent(id, name) {
+  toast(`Edit form for ${name} — coming soon`, 'warning');
+}
+
+async function runEvaluation() {
+  const year = document.getElementById('evalYear').value;
+  if (!year) { toast('Enter academic year', 'error'); return; }
+
+  const btn = document.getElementById('evalConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running...';
+
+  const res = await API.post('/api/evaluation/run-annual', { academic_year: year });
+
+  if (res?.ok) {
+    const d = res.data;
+    const resultsEl = document.getElementById('evalResults');
+    const statusCounts = { good_standing: 0, academic_warning: 0, probation: 0, dismissed: 0 };
+    (d.results || []).forEach(r => { statusCounts[r.status?.status?.toLowerCase().replace(' ','_')] = (statusCounts[r.status?.status?.toLowerCase().replace(' ','_')] || 0) + 1; });
+
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = `
+      <div style="background:var(--green-light);border:1px solid var(--green);border-radius:10px;padding:16px;margin-bottom:16px;">
+        <strong style="color:#065f46">✅ Evaluation Complete — ${d.evaluated} students assessed</strong>
+        <div style="font-size:13px;color:#065f46;margin-top:6px;">
+          Year: ${year} | Results saved to evaluation history.
+        </div>
+      </div>`;
+
+    toast(`Annual evaluation done! ${d.evaluated} students evaluated.`, 'success');
+    // Refresh dashboard stats
+    const dash = await API.get('/api/admin/dashboard');
+    if (dash) renderStats(dash);
+  } else {
+    toast(res?.data?.error || 'Evaluation failed', 'error');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '▶ Run Evaluation';
+}
+
+async function bulkUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch('/api/admin/students/bulk-upload', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData
+  });
+  const data = await res.json();
+  if (res.ok) {
+    toast(`Bulk upload done: ${data.created} created, ${data.errors.length} errors`, data.errors.length ? 'warning' : 'success');
+    loadStudents();
+  } else {
+    toast('Upload failed', 'error');
+  }
+}
+
+function debounceSearch() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => loadStudents(1), 350);
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function showSection(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+}
+
+init();
+</script>
+</body>
+</html>

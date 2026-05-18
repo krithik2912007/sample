@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semester {{ semester }} — Academic Record</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% include 'shared/base.html' %}
+<style>
+/* Semester Tabs */
+.sem-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.sem-tab {
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  background: white;
+  color: var(--muted);
+  transition: all 0.2s;
+  text-decoration: none;
+}
+.sem-tab:hover { border-color: var(--blue); color: var(--blue); }
+.sem-tab.active { background: var(--navy); border-color: var(--navy); color: white; }
+.sem-tab .tab-gpa {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  margin-top: 2px;
+  opacity: 0.7;
+}
+.sem-tab.active .tab-gpa { opacity: 0.8; }
+
+/* Subject cards */
+.subjects-list { display: flex; flex-direction: column; gap: 12px; }
+
+.subject-card {
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+.subject-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.subject-card.graded { border-color: var(--green); }
+.subject-card.failed { border-color: var(--red); }
+.subject-card.partial { border-color: var(--gold); }
+
+.subject-header {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  cursor: pointer;
+  gap: 14px;
+  user-select: none;
+}
+.subject-code {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  background: var(--bg);
+  padding: 3px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.subject-name { font-size: 15px; font-weight: 600; color: var(--text); flex: 1; }
+.subject-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.credit-badge {
+  background: var(--navy);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.type-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.type-theory { background: var(--blue-light); color: #1e40af; }
+.type-lot { background: var(--purple-light); color: #5b21b6; }
+.type-lab { background: var(--green-light); color: #065f46; }
+.type-soft_skills { background: var(--orange-light); color: #9a3412; }
+.type-non_credit { background: #f8fafc; color: var(--muted); border: 1px solid var(--border); }
+.type-internship { background: var(--gold-light); color: #92400e; }
+
+.subject-expand { font-size: 18px; color: var(--muted); transition: transform 0.2s; }
+.subject-card.open .subject-expand { transform: rotate(180deg); }
+
+/* Mark Entry Panel */
+.mark-panel {
+  display: none;
+  border-top: 1px solid var(--border);
+  padding: 24px 24px 20px;
+  background: #fafbfd;
+}
+.subject-card.open .mark-panel { display: block; }
+
+.mark-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.mark-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid);
+  margin-bottom: 6px;
+}
+.mark-field label .max { color: var(--muted); font-weight: 400; }
+.mark-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  background: white;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+  text-align: center;
+}
+.mark-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+}
+.mark-input.warn { border-color: var(--gold); }
+.mark-input.ok { border-color: var(--green); }
+
+/* LOT model max selector */
+.model-max-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.model-max-btn {
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: white;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.15s;
+}
+.model-max-btn.active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: white;
+}
+
+/* Live calculation preview */
+.calc-preview {
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.calc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 13px;
+  color: var(--text-mid);
+  border-bottom: 1px solid var(--bg);
+}
+.calc-row:last-child { border-bottom: none; }
+.calc-row.total {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1.5px dashed var(--border);
+}
+.calc-val { font-weight: 600; color: var(--text); }
+
+/* Result display */
+.result-display {
+  display: none;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: var(--bg);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+.result-display.show { display: flex; }
+.result-grade {
+  width: 52px; height: 52px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 800;
+  flex-shrink: 0;
+}
+.result-details { flex: 1; }
+.result-total { font-size: 22px; font-weight: 700; color: var(--text); }
+.result-breakdown { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* Recommendation alert */
+.rec-alert {
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-top: 12px;
+  line-height: 1.5;
+}
+.rec-alert.risk { background: #fef2f2; color: #991b1b; border-left: 3px solid var(--red); }
+.rec-alert.info { background: #eff6ff; color: #1e40af; border-left: 3px solid var(--blue); }
+
+/* Action buttons */
+.mark-actions { display: flex; gap: 10px; align-items: center; }
+
+/* Pass/fail selector */
+.pf-selector { display: flex; gap: 8px; }
+.pf-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: white;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.pf-btn.pass.active { background: var(--green-light); border-color: var(--green); color: #065f46; }
+.pf-btn.fail.active { background: var(--red-light); border-color: var(--red); color: #991b1b; }
+
+/* Semester summary panel */
+.sem-summary {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  margin-bottom: 24px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 24px;
+  align-items: center;
+}
+.sem-gpa-ring { text-align: center; }
+.sem-gpa-big {
+  font-family: 'DM Serif Display', serif;
+  font-size: 48px;
+  line-height: 1;
+  color: var(--text);
+}
+.sem-gpa-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.sem-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sem-stat { text-align: center; }
+.sem-stat-val { font-size: 20px; font-weight: 700; color: var(--text); }
+.sem-stat-lbl { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">R</div>
+    <div>
+      <div class="logo-name">REC Academic</div>
+      <div class="logo-dept">Student Portal</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">My Academic</div>
+  <a class="nav-item" href="/student/dashboard"><span class="nav-icon">🏠</span> Dashboard</a>
+  <a class="nav-item active" href="#"><span class="nav-icon">📚</span> Semester Records</a>
+  <a class="nav-item" href="/student/simulator"><span class="nav-icon">🧮</span> Grade Simulator</a>
+
+  <div class="sidebar-section">Analytics</div>
+  <a class="nav-item" href="/student/dashboard#analytics"><span class="nav-icon">📊</span> Performance Charts</a>
+  <a class="nav-item" href="/student/dashboard#arrears"><span class="nav-icon">⚠️</span> Arrear Tracker</a>
+  <a class="nav-item" href="/student/dashboard#badges"><span class="nav-icon">🏆</span> My Badges</a>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user" id="sidebarUser">
+      <div class="user-avatar">--</div>
+      <div class="user-info">
+        <div class="user-name">Loading...</div>
+        <div class="user-role">Student</div>
+      </div>
+      <button class="btn-logout" onclick="logout()" title="Logout">⎋</button>
+    </div>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main-content">
+  <div class="topbar">
+    <div class="topbar-title">📖 Semester Records</div>
+    <div class="topbar-right">
+      <a href="/student/simulator" class="btn btn-outline btn-sm">🧮 Simulator</a>
+      <a href="/api/reports/transcript/0" class="btn btn-primary btn-sm" id="downloadBtn">📄 Transcript</a>
+    </div>
+  </div>
+
+  <div class="page-body">
+    <!-- Scholars/Warning Banner -->
+    <div id="scholarsBanner" style="display:none;"></div>
+
+    <!-- Semester Tabs -->
+    <div class="sem-tabs" id="semTabs">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Semester Summary -->
+    <div class="sem-summary" id="semSummary" style="display:none;">
+      <div class="sem-gpa-ring">
+        <div class="sem-gpa-big" id="semGpaVal">—</div>
+        <div class="sem-gpa-label">Semester GPA</div>
+      </div>
+      <div class="sem-stats">
+        <div class="sem-stat">
+          <div class="sem-stat-val" id="semPassed">—</div>
+          <div class="sem-stat-lbl">Passed</div>
+        </div>
+        <div class="sem-stat">
+          <div class="sem-stat-val" id="semFailed">—</div>
+          <div class="sem-stat-lbl">Failed/Arrear</div>
+        </div>
+        <div class="sem-stat">
+          <div class="sem-stat-val" id="semCredits">—</div>
+          <div class="sem-stat-lbl">Credits Earned</div>
+        </div>
+        <div class="sem-stat">
+          <div class="sem-stat-val" id="semYear">—</div>
+          <div class="sem-stat-lbl">Academic Year</div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Overall CGPA</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:36px;" id="cgpaDisplay">—</div>
+        <div id="cgpaStatus"></div>
+      </div>
+    </div>
+
+    <!-- Subjects List -->
+    <div class="subjects-list" id="subjectsList">
+      <div style="text-align:center;padding:60px;color:var(--muted);">
+        <div style="font-size:40px;margin-bottom:12px;">📚</div>
+        <div>Loading subjects...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CURRENT_SEM = {{ semester }};
+let studentData = null;
+let currentSemData = null;
+let modelMaxSelections = {};  // subjectId → 25|50
+
+async function init() {
+  // Load student dashboard data
+  studentData = await API.get('/api/student/dashboard');
+  if (!studentData) return;
+
+  const student = studentData.student;
+  const cgpa = studentData.cgpa?.overall_cgpa || 0;
+
+  // Update transcript download link
+  document.getElementById('downloadBtn').href = `/api/reports/transcript/${student.id}`;
+
+  // Scholars banner
+  renderScholarsBanner(studentData.scholars_info, cgpa);
+
+  // Build semester tabs
+  buildSemTabs(studentData.semester_gpas);
+
+  // Load current semester
+  await loadSemester(CURRENT_SEM);
+}
+
+function buildSemTabs(semGpas) {
+  const gpas = {};
+  semGpas.forEach(s => { gpas[s.semester] = s.gpa; });
+
+  let html = '';
+  for (let i = 1; i <= 6; i++) {
+    const active = i === CURRENT_SEM ? 'active' : '';
+    const gpaStr = gpas[i] ? `<span class="tab-gpa">GPA: ${gpas[i]}</span>` : `<span class="tab-gpa">—</span>`;
+    html += `<a href="/student/semester/${i}" class="sem-tab ${active}">
+      Sem ${i} ${gpaStr}
+    </a>`;
+  }
+  // 7 & 8 if unlocked
+  for (let i = 7; i <= 8; i++) {
+    const active = i === CURRENT_SEM ? 'active' : '';
+    const gpaStr = gpas[i] ? `<span class="tab-gpa">GPA: ${gpas[i]}</span>` : `<span class="tab-gpa">—</span>`;
+    html += `<a href="/student/semester/${i}" class="sem-tab ${active}">
+      Sem ${i} ${gpaStr}
+    </a>`;
+  }
+  document.getElementById('semTabs').innerHTML = html;
+}
+
+async function loadSemester(sem) {
+  const dept = studentData?.student?.department?.id || 1;
+  const data = await API.get(`/api/marks/semester/${sem}?dept_id=${dept}`);
+  if (!data) return;
+
+  currentSemData = data;
+
+  // Show summary if GPA calculated
+  if (data.semester_gpa) {
+    showSemSummary(data.semester_gpa);
+  }
+
+  // Render subjects
+  renderSubjects(data.subjects_with_marks);
+}
+
+function showSemSummary(gpa) {
+  const el = document.getElementById('semSummary');
+  el.style.display = 'grid';
+  document.getElementById('semGpaVal').textContent = gpa.gpa.toFixed(2);
+  document.getElementById('semPassed').textContent = gpa.subjects_passed;
+  document.getElementById('semFailed').textContent = gpa.subjects_failed;
+  document.getElementById('semCredits').textContent = gpa.earned_credits;
+  document.getElementById('semYear').textContent = gpa.academic_year;
+
+  const cgpa = studentData?.cgpa?.overall_cgpa || 0;
+  document.getElementById('cgpaDisplay').textContent = cgpa.toFixed(2);
+
+  const scholars = studentData?.scholars_info;
+  if (scholars) {
+    document.getElementById('cgpaStatus').innerHTML =
+      `<span style="font-size:12px;color:${scholars.color};">${scholars.message}</span>`;
+  }
+}
+
+function renderScholarsBanner(info, cgpa) {
+  const el = document.getElementById('scholarsBanner');
+  if (!info) return;
+  el.style.display = 'block';
+
+  if (info.state === 'scholars') {
+    el.className = 'scholars-banner';
+    el.innerHTML = `
+      <div class="banner-icon">🏆</div>
+      <div class="banner-text">
+        <strong>Scholars Program Member</strong>
+        <span>${info.sub_message}</span>
+      </div>`;
+  } else if (info.state === 'within_reach') {
+    el.className = 'info-banner';
+    el.innerHTML = `
+      <div class="banner-icon">🎯</div>
+      <div class="banner-text">
+        <strong>${info.message}</strong>
+        <span>${info.sub_message}</span>
+      </div>`;
+  } else {
+    el.className = 'info-banner';
+    el.innerHTML = `
+      <div class="banner-icon">💪</div>
+      <div class="banner-text">
+        <strong>${info.message}</strong>
+        <span>${info.sub_message}</span>
+      </div>`;
+  }
+}
+
+function renderSubjects(subjects) {
+  const list = document.getElementById('subjectsList');
+  if (!subjects || subjects.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:60px;color:var(--muted);">
+      <div style="font-size:40px;margin-bottom:12px;">📋</div>
+      <div>No subjects found for this semester.</div>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = subjects.map(item => renderSubjectCard(item)).join('');
+}
+
+function renderSubjectCard({ subject, mark }) {
+  const type = subject.subject_type;
+  const hasGrade = mark && mark.grade;
+  const isFailed = mark && mark.grade === 'F';
+  const isPartial = mark && !hasGrade;
+
+  const stateClass = isFailed ? 'failed' : (hasGrade ? 'graded' : (isPartial ? 'partial' : ''));
+  const typeLabel = type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const typeClass = `type-${type}`;
+
+  let gradeHtml = '';
+  if (hasGrade) {
+    gradeHtml = `<span class="grade-chip ${gradeClass(mark.grade)}">${mark.grade}</span>`;
+  }
+
+  return `
+  <div class="subject-card ${stateClass}" id="card-${subject.id}">
+    <div class="subject-header" onclick="toggleCard(${subject.id})">
+      <span class="subject-code">${subject.code}</span>
+      <span class="subject-name">${subject.name}</span>
+      <div class="subject-meta">
+        ${gradeHtml}
+        <span class="type-badge ${typeClass}">${typeLabel}</span>
+        <span class="credit-badge">${subject.credits}C</span>
+        <span class="subject-expand">⌄</span>
+      </div>
+    </div>
+    <div class="mark-panel" id="panel-${subject.id}">
+      ${renderMarkForm(subject, mark)}
+    </div>
+  </div>`;
+}
+
+function renderMarkForm(subject, mark) {
+  const type = subject.subject_type;
+  const m = mark || {};
+
+  if (type === 'theory') {
+    return `
+      <div class="calc-preview" id="preview-${subject.id}" style="display:none;"></div>
+      <div class="mark-grid">
+        <div class="mark-field">
+          <label>CAT 1 <span class="max">/ 75</span></label>
+          <input type="number" class="mark-input" min="0" max="75" step="0.5"
+            id="cat1-${subject.id}" value="${m.cat1 ?? ''}"
+            oninput="liveCalc(${subject.id},'theory')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>CAT 2 <span class="max">/ 75</span></label>
+          <input type="number" class="mark-input" min="0" max="75" step="0.5"
+            id="cat2-${subject.id}" value="${m.cat2 ?? ''}"
+            oninput="liveCalc(${subject.id},'theory')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>Digi Quiz <span class="max">/ 50</span></label>
+          <input type="number" class="mark-input" min="0" max="50" step="0.5"
+            id="quiz-${subject.id}" value="${m.quiz ?? ''}"
+            oninput="liveCalc(${subject.id},'theory')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>End Semester <span class="max">/ 100</span></label>
+          <input type="number" class="mark-input" min="0" max="100" step="0.5"
+            id="end_sem_theory-${subject.id}" value="${m.end_sem_theory ?? ''}"
+            oninput="liveCalc(${subject.id},'theory')" placeholder="0">
+        </div>
+      </div>
+      ${renderResult(subject.id)}
+      ${renderEndSemTargets(subject.id, type)}
+      <div class="mark-actions">
+        <button class="btn btn-primary" onclick="saveMarks(${subject.id}, 'theory')">💾 Save Marks</button>
+        <button class="btn btn-outline btn-sm" onclick="clearForm(${subject.id})">Clear</button>
+      </div>`;
+  }
+
+  if (type === 'lot') {
+    const modelMax = m.model_max || 25;
+    return `
+      <div class="calc-preview" id="preview-${subject.id}" style="display:none;"></div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:6px;">
+          Model Practical Max Marks
+        </label>
+        <div class="model-max-selector">
+          <button class="model-max-btn ${modelMax===25?'active':''}" onclick="setModelMax(${subject.id},25,this)">25 Marks</button>
+          <button class="model-max-btn ${modelMax===50?'active':''}" onclick="setModelMax(${subject.id},50,this)">50 Marks</button>
+        </div>
+      </div>
+      <div class="mark-grid">
+        <div class="mark-field">
+          <label>CAT 1 <span class="max">/ 75</span></label>
+          <input type="number" class="mark-input" min="0" max="75" step="0.5"
+            id="cat1-${subject.id}" value="${m.cat1 ?? ''}"
+            oninput="liveCalc(${subject.id},'lot')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>CAT 2 <span class="max">/ 75</span></label>
+          <input type="number" class="mark-input" min="0" max="75" step="0.5"
+            id="cat2-${subject.id}" value="${m.cat2 ?? ''}"
+            oninput="liveCalc(${subject.id},'lot')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>Digi Quiz <span class="max">/ 50</span></label>
+          <input type="number" class="mark-input" min="0" max="50" step="0.5"
+            id="quiz-${subject.id}" value="${m.quiz ?? ''}"
+            oninput="liveCalc(${subject.id},'lot')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>End Sem Theory <span class="max">/ 100</span></label>
+          <input type="number" class="mark-input" min="0" max="100" step="0.5"
+            id="end_sem_theory-${subject.id}" value="${m.end_sem_theory ?? ''}"
+            oninput="liveCalc(${subject.id},'lot')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>Model Lab <span class="max" id="model-max-label-${subject.id}">/ ${modelMax}</span></label>
+          <input type="number" class="mark-input" min="0" max="${modelMax}" step="0.5"
+            id="model_lab-${subject.id}" value="${m.model_lab ?? ''}"
+            oninput="liveCalc(${subject.id},'lot')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>End Sem Practical <span class="max">/ 100</span></label>
+          <input type="number" class="mark-input" min="0" max="100" step="0.5"
+            id="end_sem_practical-${subject.id}" value="${m.end_sem_practical ?? ''}"
+            oninput="liveCalc(${subject.id},'lot')" placeholder="0">
+        </div>
+      </div>
+      ${renderResult(subject.id)}
+      ${renderEndSemTargets(subject.id, type)}
+      <div class="mark-actions">
+        <button class="btn btn-primary" onclick="saveMarks(${subject.id}, 'lot')">💾 Save Marks</button>
+        <button class="btn btn-outline btn-sm" onclick="clearForm(${subject.id})">Clear</button>
+      </div>`;
+  }
+
+  if (type === 'lab' || type === 'project') {
+    return `
+      <div class="calc-preview" id="preview-${subject.id}" style="display:none;"></div>
+      <div class="mark-grid">
+        <div class="mark-field">
+          <label>Model Exam <span class="max">/ 25</span></label>
+          <input type="number" class="mark-input" min="0" max="25" step="0.5"
+            id="model_lab-${subject.id}" value="${m.model_lab ?? ''}"
+            oninput="liveCalc(${subject.id},'lab')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>Semester Exam <span class="max">/ 75</span></label>
+          <input type="number" class="mark-input" min="0" max="75" step="0.5"
+            id="end_sem_practical-${subject.id}" value="${m.end_sem_practical ?? ''}"
+            oninput="liveCalc(${subject.id},'lab')" placeholder="0">
+        </div>
+      </div>
+      ${renderResult(subject.id)}
+      <div class="mark-actions">
+        <button class="btn btn-primary" onclick="saveMarks(${subject.id},'lab')">💾 Save Marks</button>
+      </div>`;
+  }
+
+  if (type === 'soft_skills') {
+    return `
+      <div class="calc-preview" id="preview-${subject.id}" style="display:none;"></div>
+      <div class="mark-grid">
+        <div class="mark-field">
+          <label>CAT 1 <span class="max">/ 100</span></label>
+          <input type="number" class="mark-input" min="0" max="100" step="0.5"
+            id="ss_cat1-${subject.id}" value="${m.ss_cat1 ?? ''}"
+            oninput="liveCalc(${subject.id},'soft_skills')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>CAT 2 <span class="max">/ 100</span></label>
+          <input type="number" class="mark-input" min="0" max="100" step="0.5"
+            id="ss_cat2-${subject.id}" value="${m.ss_cat2 ?? ''}"
+            oninput="liveCalc(${subject.id},'soft_skills')" placeholder="0">
+        </div>
+        <div class="mark-field">
+          <label>CAT 3 <span class="max">/ 100</span></label>
+          <input type="number" class="mark-input" min="0" max="100" step="0.5"
+            id="ss_cat3-${subject.id}" value="${m.ss_cat3 ?? ''}"
+            oninput="liveCalc(${subject.id},'soft_skills')" placeholder="0">
+        </div>
+      </div>
+      ${renderResult(subject.id)}
+      <div class="mark-actions">
+        <button class="btn btn-primary" onclick="saveMarks(${subject.id},'soft_skills')">💾 Save Marks</button>
+      </div>`;
+  }
+
+  if (type === 'non_credit' || type === 'internship') {
+    const pf = m.pass_fail || 'pending';
+    return `
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">
+        This subject does not affect CGPA. Mark pass or fail below.
+      </p>
+      <div class="pf-selector">
+        <button class="pf-btn pass ${pf==='pass'?'active':''}"
+          id="pf-pass-${subject.id}" onclick="setPF(${subject.id},'pass')">✓ Pass</button>
+        <button class="pf-btn fail ${pf==='fail'?'active':''}"
+          id="pf-fail-${subject.id}" onclick="setPF(${subject.id},'fail')">✕ Fail</button>
+      </div>
+      <div class="mark-actions" style="margin-top:14px;">
+        <button class="btn btn-primary" onclick="savePassFail(${subject.id})">💾 Save</button>
+      </div>`;
+  }
+
+  return '<div style="color:var(--muted);padding:12px;">Entry not configured.</div>';
+}
+
+function renderResult(subjectId) {
+  return `
+  <div class="result-display" id="result-${subjectId}">
+    <div class="result-grade" id="result-grade-${subjectId}">—</div>
+    <div class="result-details">
+      <div class="result-total" id="result-total-${subjectId}">—/100</div>
+      <div class="result-breakdown" id="result-breakdown-${subjectId}"></div>
+    </div>
+  </div>
+  <div id="rec-alert-${subjectId}"></div>`;
+}
+
+function renderEndSemTargets(subjectId, type) {
+  if (type === 'lab' || type === 'soft_skills') return '';
+  return `
+  <div id="targets-${subjectId}" style="display:none;margin-bottom:14px;">
+    <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;">End Sem Targets</div>
+    <div id="targets-list-${subjectId}" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+  </div>`;
+}
+
+// ── Live Calculation ────────────────────────────────────────────────
+async function liveCalc(subjectId, type) {
+  const data = collectFormData(subjectId, type);
+  const res = await fetch('/api/marks/calculate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...data, subject_type: type })
+  });
+  const calc = await res.json();
+  updateResultDisplay(subjectId, calc, type, data);
+}
+
+function collectFormData(subjectId, type) {
+  const get = id => {
+    const el = document.getElementById(`${id}-${subjectId}`);
+    return el ? parseFloat(el.value) || 0 : 0;
+  };
+  const modelMax = modelMaxSelections[subjectId] || 25;
+
+  if (type === 'theory') {
+    return { cat1: get('cat1'), cat2: get('cat2'), quiz: get('quiz'), end_sem_theory: get('end_sem_theory') };
+  }
+  if (type === 'lot') {
+    return { cat1: get('cat1'), cat2: get('cat2'), quiz: get('quiz'),
+      end_sem_theory: get('end_sem_theory'), model_lab: get('model_lab'),
+      model_max: modelMax, end_sem_practical: get('end_sem_practical') };
+  }
+  if (type === 'lab' || type === 'project') {
+    return { model_lab: get('model_lab'), end_sem_practical: get('end_sem_practical') };
+  }
+  if (type === 'soft_skills') {
+    return { ss_cat1: get('ss_cat1'), ss_cat2: get('ss_cat2'), ss_cat3: get('ss_cat3') };
+  }
+  return {};
+}
+
+function updateResultDisplay(subjectId, calc, type, data) {
+  const resultEl = document.getElementById(`result-${subjectId}`);
+  const gradeEl = document.getElementById(`result-grade-${subjectId}`);
+  const totalEl = document.getElementById(`result-total-${subjectId}`);
+  const breakdownEl = document.getElementById(`result-breakdown-${subjectId}`);
+  const alertEl = document.getElementById(`rec-alert-${subjectId}`);
+  const targetsEl = document.getElementById(`targets-${subjectId}`);
+
+  if (calc.error) { resultEl.classList.remove('show'); return; }
+
+  resultEl.classList.add('show');
+  gradeEl.className = `result-grade ${gradeClass(calc.grade)}`;
+  gradeEl.textContent = calc.grade || '?';
+  totalEl.textContent = `${calc.total?.toFixed(2) || '—'} / 100`;
+  totalEl.style.color = cgpaColor(calc.total || 0);
+
+  // Breakdown text
+  const b = calc.breakdown || {};
+  let btext = '';
+  if (type === 'theory') btext = `Internal: ${b.theory_internal_converted ?? '—'} | External: ${b.theory_external_converted ?? '—'}`;
+  if (type === 'lot') btext = `Theory: ${((b.theory_internal||0)+(b.theory_external||0)).toFixed(1)} | Prac: ${((b.prac_internal||0)+(b.prac_external||0)).toFixed(1)}`;
+  if (type === 'lab' || type === 'project') btext = `Model: ${b.model_25 ?? '—'} | Sem: ${b.semester_75 ?? '—'}`;
+  if (type === 'soft_skills') btext = `(${b.ss_cat1||0} + ${b.ss_cat2||0} + ${b.ss_cat3||0}) / 300 × 100`;
+  breakdownEl.textContent = btext;
+
+  // Show end-sem targets for theory/LOT (if internals entered, end_sem=0)
+  const hasEndSem = (data.end_sem_theory || 0) > 0 || (data.end_sem_practical || 0) > 0;
+  if (!hasEndSem && targetsEl && type !== 'lab' && type !== 'soft_skills') {
+    showTargets(subjectId, type, data);
+  } else if (targetsEl) {
+    targetsEl.style.display = 'none';
+  }
+
+  // Alert
+  const internalOnly = !hasEndSem;
+  if (internalOnly && type === 'theory') {
+    const internal = b.theory_internal_converted || 0;
+    const minEndSem = Math.max(0, (40 - internal) / 0.6);
+    alertEl.innerHTML = '';
+    if (minEndSem > 0) {
+      const cls = minEndSem > 60 ? 'risk' : 'info';
+      alertEl.innerHTML = `<div class="rec-alert ${cls}">
+        You need <strong>${minEndSem.toFixed(1)}/100</strong> in End Semester to pass this subject.
+      </div>`;
+    }
+  } else {
+    alertEl.innerHTML = '';
+  }
+}
+
+async function showTargets(subjectId, type, data) {
+  const targetsEl = document.getElementById(`targets-${subjectId}`);
+  const listEl = document.getElementById(`targets-list-${subjectId}`);
+  if (!targetsEl || !listEl) return;
+
+  const grades = [
+    { label: 'Pass (C)', minMark: 40 },
+    { label: 'B',  minMark: 51 },
+    { label: 'B+', minMark: 61 },
+    { label: 'A',  minMark: 71 },
+    { label: 'A+', minMark: 81 },
+    { label: 'O',  minMark: 91 }
+  ];
+
+  let html = '';
+  for (const g of grades) {
+    let needed;
+    if (type === 'theory') {
+      const internal = (data.cat1 + data.cat2 + data.quiz) / 200 * 40;
+      needed = Math.max(0, (g.minMark - internal) / 0.6);
+    } else {
+      continue; // simplified — LOT needs more complex calc
+    }
+    const feasible = needed <= 100;
+    const color = feasible ? 'var(--green)' : 'var(--muted)';
+    html += `<span style="padding:6px 12px;border-radius:8px;background:var(--bg);
+      border:1px solid var(--border);font-size:12px;font-weight:600;color:${color};">
+      ${g.label}: ${feasible ? needed.toFixed(1)+'/100' : '—'}
+    </span>`;
+  }
+
+  listEl.innerHTML = html;
+  targetsEl.style.display = 'block';
+}
+
+function setModelMax(subjectId, val, btn) {
+  modelMaxSelections[subjectId] = val;
+  const selector = btn.closest('.model-max-selector');
+  selector.querySelectorAll('.model-max-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Update label
+  const label = document.getElementById(`model-max-label-${subjectId}`);
+  if (label) label.textContent = `/ ${val}`;
+  const input = document.getElementById(`model_lab-${subjectId}`);
+  if (input) input.max = val;
+  liveCalc(subjectId, 'lot');
+}
+
+function setPF(subjectId, val) {
+  document.getElementById(`pf-pass-${subjectId}`)?.classList.toggle('active', val === 'pass');
+  document.getElementById(`pf-fail-${subjectId}`)?.classList.toggle('active', val === 'fail');
+}
+
+function toggleCard(subjectId) {
+  const card = document.getElementById(`card-${subjectId}`);
+  card.classList.toggle('open');
+}
+
+function clearForm(subjectId) {
+  document.querySelectorAll(`[id$="-${subjectId}"]`).forEach(el => {
+    if (el.tagName === 'INPUT') el.value = '';
+  });
+}
+
+async function saveMarks(subjectId, type) {
+  const data = collectFormData(subjectId, type);
+  const modelMax = modelMaxSelections[subjectId] || 25;
+
+  // Find subject in currentSemData
+  const item = currentSemData?.subjects_with_marks?.find(s => s.subject.id === subjectId);
+  if (!item) return;
+
+  const payload = {
+    subject_id: subjectId,
+    subject_type: type,
+    model_max: modelMax,
+    ...data
+  };
+
+  const result = await API.post('/api/marks/save', payload);
+  if (!result) return;
+
+  if (result.ok) {
+    toast(`Marks saved! Grade: ${result.data.grade} — ${result.data.calculation?.total?.toFixed(2)}/100`, 'success');
+    // Refresh semester
+    await loadSemester(CURRENT_SEM);
+    buildSemTabs(studentData.semester_gpas);
+  } else {
+    toast(result.data?.error || 'Failed to save marks', 'error');
+  }
+}
+
+async function savePassFail(subjectId) {
+  const passActive = document.getElementById(`pf-pass-${subjectId}`)?.classList.contains('active');
+  const failActive = document.getElementById(`pf-fail-${subjectId}`)?.classList.contains('active');
+  const pf = passActive ? 'pass' : (failActive ? 'fail' : 'pending');
+
+  const result = await API.post('/api/marks/save', {
+    subject_id: subjectId,
+    subject_type: 'non_credit',
+    pass_fail: pf
+  });
+
+  if (result?.ok) {
+    toast('Status saved!', 'success');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

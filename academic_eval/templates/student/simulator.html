@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grade Simulator — Academic Evaluation</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% include 'shared/base.html' %}
+<style>
+/* Simulator layout */
+.sim-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 24px;
+  align-items: start;
+}
+
+/* Add subject panel */
+.add-subject-bar {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.add-subject-bar .asb-group {
+  display: flex; flex-direction: column; gap: 6px;
+  flex: 1; min-width: 140px;
+}
+.asb-label { font-size: 12px; font-weight: 600; color: var(--text-mid); }
+.asb-select, .asb-input {
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  outline: none;
+  background: white;
+  transition: border-color 0.2s;
+}
+.asb-select:focus, .asb-input:focus { border-color: var(--blue); }
+
+/* Sim subject cards */
+.sim-subjects { display: flex; flex-direction: column; gap: 12px; }
+
+.sim-card {
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+.sim-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+.sim-card.pass { border-left: 4px solid var(--green); }
+.sim-card.fail { border-left: 4px solid var(--red); }
+.sim-card.nc   { border-left: 4px solid var(--muted); }
+
+.sc-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+  user-select: none;
+}
+.sc-drag { font-size: 16px; color: var(--muted); cursor: grab; flex-shrink: 0; }
+.sc-name { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); }
+.sc-meta { display: flex; gap: 8px; align-items: center; }
+.sc-credit { font-size: 11px; font-weight: 700; background: var(--navy); color: white; padding: 3px 8px; border-radius: 5px; }
+.sc-grade-preview {
+  display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 9px;
+  font-size: 13px; font-weight: 800;
+}
+.sc-total { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--text); }
+.sc-remove { background: none; border: none; font-size: 18px; color: var(--muted); cursor: pointer; padding: 4px; border-radius: 6px; }
+.sc-remove:hover { color: var(--red); }
+.sc-expand { font-size: 16px; color: var(--muted); transition: transform 0.2s; }
+.sim-card.open .sc-expand { transform: rotate(180deg); }
+
+.sc-body {
+  display: none;
+  padding: 16px 20px 18px;
+  border-top: 1px solid var(--border);
+  background: #fafbfd;
+}
+.sim-card.open .sc-body { display: block; }
+
+.sc-mark-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.sc-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-mid);
+  margin-bottom: 5px;
+}
+.sc-field label .mx { color: var(--muted); font-weight: 400; }
+.sc-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px; font-weight: 600;
+  text-align: center; outline: none;
+  transition: border-color 0.2s;
+}
+.sc-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+
+.breakdown-strip {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12px; color: var(--muted);
+}
+.breakdown-strip strong { color: var(--text); }
+
+/* GPA Result Panel (sticky) */
+.result-panel {
+  position: sticky;
+  top: 80px;
+}
+
+.gpa-result-card {
+  background: var(--navy);
+  border-radius: 20px;
+  padding: 28px;
+  color: white;
+  margin-bottom: 16px;
+  text-align: center;
+}
+.gpr-label { font-size: 12px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.gpr-gpa {
+  font-family: 'DM Serif Display', serif;
+  font-size: 64px; line-height: 1;
+  margin-bottom: 4px;
+  transition: color 0.3s;
+}
+.gpr-sub { font-size: 13px; color: rgba(255,255,255,0.6); }
+.gpr-stats {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-top: 20px;
+}
+.gpr-stat {
+  background: rgba(255,255,255,0.07);
+  border-radius: 10px; padding: 12px;
+}
+.gpr-stat-val { font-size: 22px; font-weight: 700; }
+.gpr-stat-lbl { font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+
+/* Grade distribution */
+.grade-dist {
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.gd-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.gd-grade { width: 28px; font-size: 12px; font-weight: 700; text-align: center; }
+.gd-bar-track { flex: 1; height: 8px; background: var(--bg); border-radius: 6px; overflow: hidden; }
+.gd-bar-fill { height: 100%; border-radius: 6px; transition: width 0.5s ease; }
+.gd-count { width: 20px; font-size: 12px; color: var(--muted); text-align: right; font-weight: 600; }
+
+/* Scholars indicator */
+.scholars-indicator {
+  background: linear-gradient(135deg, #fef9c3, #fef3c7);
+  border: 1.5px solid #fde68a;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: #78350f;
+  text-align: center;
+}
+.scholars-indicator.good { background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-color: #a7f3d0; color: #065f46; }
+.scholars-indicator.bad  { background: linear-gradient(135deg, #fef2f2, #fee2e2); border-color: #fecaca; color: #991b1b; }
+
+/* Empty state */
+.sim-empty {
+  text-align: center; padding: 60px 40px;
+  background: white; border: 1.5px dashed var(--border);
+  border-radius: 16px; color: var(--muted);
+}
+.sim-empty .e-icon { font-size: 48px; margin-bottom: 16px; }
+.sim-empty h3 { font-size: 16px; color: var(--text); margin-bottom: 8px; }
+
+/* Quick templates */
+.templates-bar {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.tmpl-btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: white;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; color: var(--muted);
+  transition: all 0.15s;
+}
+.tmpl-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+@media (max-width: 1024px) {
+  .sim-layout { grid-template-columns: 1fr; }
+  .result-panel { position: static; }
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">R</div>
+    <div>
+      <div class="logo-name">REC Academic</div>
+      <div class="logo-dept">Grade Simulator</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">Navigation</div>
+  <a class="nav-item" href="/student/dashboard"><span class="nav-icon">🏠</span> Dashboard</a>
+  <a class="nav-item" href="/student/semester/1"><span class="nav-icon">📚</span> Semester Records</a>
+  <a class="nav-item active" href="/student/simulator"><span class="nav-icon">🧮</span> Grade Simulator</a>
+
+  <div class="sidebar-section">Quick Load</div>
+  <a class="nav-item" href="#" onclick="loadTemplate('sem1')"><span class="nav-icon">1️⃣</span> Load Sem 1</a>
+  <a class="nav-item" href="#" onclick="loadTemplate('sem2')"><span class="nav-icon">2️⃣</span> Load Sem 2</a>
+  <a class="nav-item" href="#" onclick="loadTemplate('sem3')"><span class="nav-icon">3️⃣</span> Load Sem 3</a>
+  <a class="nav-item" href="#" onclick="clearAll()"><span class="nav-icon">🗑</span> Clear All</a>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user" id="sidebarUser">
+      <div class="user-avatar">--</div>
+      <div class="user-info">
+        <div class="user-name">Loading...</div>
+        <div class="user-role">Student</div>
+      </div>
+      <button class="btn-logout" onclick="logout()">⎋</button>
+    </div>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main-content">
+  <div class="topbar">
+    <div class="topbar-title">🧮 Grade Simulator</div>
+    <div class="topbar-right">
+      <button class="btn btn-outline btn-sm" onclick="clearAll()">🗑 Clear All</button>
+      <button class="btn btn-gold btn-sm" onclick="runSimulation()">▶ Calculate GPA</button>
+    </div>
+  </div>
+
+  <div class="page-body">
+
+    <!-- Info Banner -->
+    <div class="info-banner" style="margin-bottom:20px;">
+      <div class="banner-icon">💡</div>
+      <div class="banner-text">
+        <strong>Simulation Mode — Nothing is saved</strong>
+        <span>Add any subjects, enter marks, and see your projected GPA. Use this to plan end-semester strategy before the actual exam.</span>
+      </div>
+    </div>
+
+    <!-- Quick Load Templates -->
+    <div class="templates-bar">
+      <span style="font-size:12px;font-weight:600;color:var(--muted);align-self:center;">Quick Load:</span>
+      <button class="tmpl-btn" onclick="loadTemplate('sem1')">📘 Semester 1</button>
+      <button class="tmpl-btn" onclick="loadTemplate('sem2')">📗 Semester 2</button>
+      <button class="tmpl-btn" onclick="loadTemplate('sem3')">📙 Semester 3</button>
+      <button class="tmpl-btn" onclick="addSubject('theory')">➕ Theory</button>
+      <button class="tmpl-btn" onclick="addSubject('lot')">➕ LOT</button>
+      <button class="tmpl-btn" onclick="addSubject('lab')">➕ Lab</button>
+      <button class="tmpl-btn" onclick="addSubject('soft_skills')">➕ Soft Skills</button>
+    </div>
+
+    <!-- Add Subject Bar -->
+    <div class="add-subject-bar">
+      <div class="asb-group">
+        <span class="asb-label">Subject Name</span>
+        <input class="asb-input" id="newSubName" placeholder="e.g. Data Structures">
+      </div>
+      <div class="asb-group" style="flex:0;min-width:100px;">
+        <span class="asb-label">Credits</span>
+        <input class="asb-input" id="newSubCredits" type="number" value="4" min="0" max="6">
+      </div>
+      <div class="asb-group" style="flex:0;min-width:140px;">
+        <span class="asb-label">Type</span>
+        <select class="asb-select" id="newSubType">
+          <option value="theory">Theory</option>
+          <option value="lot">LOT</option>
+          <option value="lab">Lab</option>
+          <option value="soft_skills">Soft Skills</option>
+          <option value="non_credit">Non-Credit</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="addSubjectFromBar()">➕ Add Subject</button>
+    </div>
+
+    <div class="sim-layout">
+      <!-- Left: Subjects -->
+      <div>
+        <div id="simSubjects">
+          <div class="sim-empty">
+            <div class="e-icon">🧮</div>
+            <h3>Start your simulation</h3>
+            <p style="font-size:13px;">Add subjects using the bar above, or quick-load a semester template.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Result Panel -->
+      <div class="result-panel">
+        <div class="gpa-result-card">
+          <div class="gpr-label">Projected GPA</div>
+          <div class="gpr-gpa" id="projGPA">—</div>
+          <div class="gpr-sub" id="projCredits">Add subjects to calculate</div>
+          <div class="gpr-stats">
+            <div class="gpr-stat">
+              <div class="gpr-stat-val" id="projPassed">—</div>
+              <div class="gpr-stat-lbl">Subjects Passed</div>
+            </div>
+            <div class="gpr-stat">
+              <div class="gpr-stat-val" id="projFailed">—</div>
+              <div class="gpr-stat-lbl">Subjects Failed</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grade distribution -->
+        <div class="grade-dist">
+          <div class="card-title" style="margin-bottom:14px;">Grade Distribution</div>
+          <div id="gradeDist">
+            <div style="font-size:13px;color:var(--muted);text-align:center;padding:12px;">No data yet</div>
+          </div>
+        </div>
+
+        <!-- Scholars indicator -->
+        <div class="scholars-indicator" id="scholarsIndicator">
+          ⭐ Scholars GPA target is <strong>8.5</strong>
+        </div>
+
+        <!-- What-if tip -->
+        <div class="card" style="margin-top:16px;padding:16px;">
+          <div class="card-title" style="margin-bottom:10px;font-size:13px;">💡 What-If Tip</div>
+          <div id="whatIfTip" style="font-size:12px;color:var(--muted);line-height:1.6;">
+            Enter marks in each subject to see projected GPA. Change values to see how different end-semester performances affect your GPA.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let subjects = [];
+let subjectCounter = 0;
+
+// Grade colors for chart
+const GRADE_COLORS = {
+  'O': '#10b981', 'A+': '#22c55e', 'A': '#3b82f6',
+  'B+': '#8b5cf6', 'B': '#f59e0b', 'C+': '#f97316', 'C': '#fb923c', 'F': '#ef4444'
+};
+
+// Templates for each semester
+const TEMPLATES = {
+  sem1: [
+    { name: 'Technical Communication I', credits: 2, type: 'theory' },
+    { name: 'Linear Algebra and Calculus', credits: 4, type: 'theory' },
+    { name: 'Heritage of Tamils', credits: 1, type: 'theory' },
+    { name: 'Programming using C', credits: 4, type: 'lot' },
+    { name: 'Basic Electrical & Electronics Engg', credits: 4, type: 'lot' },
+    { name: 'Physics for Information Science', credits: 4, type: 'lot' },
+    { name: 'Engineering Practices', credits: 1, type: 'lab' },
+    { name: 'Indian Constitution', credits: 0, type: 'non_credit' },
+  ],
+  sem2: [
+    { name: 'Discrete Mathematical Structures', credits: 4, type: 'theory' },
+    { name: 'Tamils and Technology', credits: 1, type: 'theory' },
+    { name: 'Digital Logic & Microprocessor', credits: 4, type: 'lot' },
+    { name: 'Engineering Graphics', credits: 4, type: 'lot' },
+    { name: 'Data Structures', credits: 5, type: 'lot' },
+    { name: 'Technical Communication II', credits: 1, type: 'lab' },
+    { name: 'Engineering Practices (EEE)', credits: 1, type: 'lab' },
+    { name: 'Python Programming Lab', credits: 2, type: 'lab' },
+    { name: 'Environmental Science', credits: 0, type: 'non_credit' },
+  ],
+  sem3: [
+    { name: 'Fourier Series and Number Theory', credits: 4, type: 'theory' },
+    { name: 'Computer Architecture', credits: 3, type: 'theory' },
+    { name: 'Design and Analysis of Algorithms', credits: 4, type: 'lot' },
+    { name: 'Database Management Systems', credits: 5, type: 'lot' },
+    { name: 'OOP Using Java', credits: 4, type: 'lot' },
+    { name: 'Fundamentals of Data Science', credits: 4, type: 'lot' },
+  ]
+};
+
+function loadTemplate(key) {
+  const tmpl = TEMPLATES[key];
+  if (!tmpl) return;
+  subjects = [];
+  subjectCounter = 0;
+  tmpl.forEach(s => addSubject(s.type, s.name, s.credits));
+  toast(`Loaded ${key.replace('sem', 'Semester ')} template`, 'success');
+}
+
+function addSubjectFromBar() {
+  const name    = document.getElementById('newSubName').value.trim() || 'New Subject';
+  const credits = parseInt(document.getElementById('newSubCredits').value) || 4;
+  const type    = document.getElementById('newSubType').value;
+  addSubject(type, name, credits);
+  document.getElementById('newSubName').value = '';
+}
+
+function addSubject(type, name, credits) {
+  name = name || `Subject ${subjectCounter + 1}`;
+  credits = credits !== undefined ? credits : 4;
+  const id = ++subjectCounter;
+  subjects.push({ id, name, credits, type, marks: {}, result: null });
+  renderSubjects();
+}
+
+function removeSubject(id) {
+  subjects = subjects.filter(s => s.id !== id);
+  renderSubjects();
+  recalculate();
+}
+
+function renderSubjects() {
+  if (subjects.length === 0) {
+    document.getElementById('simSubjects').innerHTML = `
+      <div class="sim-empty">
+        <div class="e-icon">🧮</div>
+        <h3>Start your simulation</h3>
+        <p style="font-size:13px;">Add subjects using the bar above, or quick-load a semester template.</p>
+      </div>`;
+    resetResult();
+    return;
+  }
+
+  document.getElementById('simSubjects').innerHTML = `
+    <div class="sim-subjects">
+      ${subjects.map(s => renderSimCard(s)).join('')}
+    </div>`;
+}
+
+function renderSimCard(s) {
+  const res = s.result;
+  const hasResult = res && res.grade;
+  const tileClass = hasResult ? (res.grade === 'F' ? 'fail' : 'pass') : (s.type === 'non_credit' ? 'nc' : '');
+  const typeLabel = s.type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+  const gradeHtml = hasResult
+    ? `<div class="sc-grade-preview ${gradeClass(res.grade)}">${res.grade}</div>
+       <div class="sc-total">${parseFloat(res.total || 0).toFixed(1)}</div>`
+    : `<div style="font-size:12px;color:var(--muted)">Enter marks</div>`;
+
+  return `
+    <div class="sim-card ${tileClass}" id="sc-${s.id}">
+      <div class="sc-header" onclick="toggleSimCard(${s.id})">
+        <span class="sc-drag">⠿</span>
+        <div class="sc-name">
+          ${s.name}
+          <div style="font-size:11px;color:var(--muted);font-weight:400;margin-top:2px;">${typeLabel} · ${s.credits} Credits</div>
+        </div>
+        <div class="sc-meta">
+          ${gradeHtml}
+          <button class="sc-remove" onclick="event.stopPropagation();removeSubject(${s.id})">✕</button>
+          <span class="sc-expand">⌄</span>
+        </div>
+      </div>
+      <div class="sc-body" id="scb-${s.id}">
+        ${renderSimForm(s)}
+      </div>
+    </div>`;
+}
+
+function renderSimForm(s) {
+  const m = s.marks || {};
+  const id = s.id;
+  const type = s.type;
+  const modelMax = m.model_max || 25;
+
+  if (type === 'theory') {
+    return `
+      <div class="sc-mark-grid">
+        <div class="sc-field"><label>CAT 1 <span class="mx">/ 75</span></label>
+          <input class="sc-input" value="${m.cat1??''}" oninput="setMark(${id},'cat1',this.value)" placeholder="0" type="number" min="0" max="75">
+        </div>
+        <div class="sc-field"><label>CAT 2 <span class="mx">/ 75</span></label>
+          <input class="sc-input" value="${m.cat2??''}" oninput="setMark(${id},'cat2',this.value)" placeholder="0" type="number" min="0" max="75">
+        </div>
+        <div class="sc-field"><label>Quiz <span class="mx">/ 50</span></label>
+          <input class="sc-input" value="${m.quiz??''}" oninput="setMark(${id},'quiz',this.value)" placeholder="0" type="number" min="0" max="50">
+        </div>
+        <div class="sc-field"><label>End Sem <span class="mx">/ 100</span></label>
+          <input class="sc-input" value="${m.end_sem_theory??''}" oninput="setMark(${id},'end_sem_theory',this.value)" placeholder="0" type="number" min="0" max="100">
+        </div>
+      </div>
+      <div class="breakdown-strip" id="bd-${id}">Formula: (CAT1+CAT2+Quiz)/200×40 + EndSem/100×60</div>`;
+  }
+
+  if (type === 'lot') {
+    return `
+      <div style="margin-bottom:10px;">
+        <span style="font-size:11px;font-weight:600;color:var(--text-mid);">Model Max: </span>
+        <button onclick="setMark(${id},'model_max',25);renderSubjects();recalculate()" style="padding:4px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;background:${modelMax===25?'var(--navy)':'white'};color:${modelMax===25?'white':'var(--muted)'}">25</button>
+        <button onclick="setMark(${id},'model_max',50);renderSubjects();recalculate()" style="padding:4px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;background:${modelMax===50?'var(--navy)':'white'};color:${modelMax===50?'white':'var(--muted)'}">50</button>
+      </div>
+      <div class="sc-mark-grid">
+        <div class="sc-field"><label>CAT 1 <span class="mx">/ 75</span></label>
+          <input class="sc-input" value="${m.cat1??''}" oninput="setMark(${id},'cat1',this.value)" placeholder="0" type="number" min="0" max="75">
+        </div>
+        <div class="sc-field"><label>CAT 2 <span class="mx">/ 75</span></label>
+          <input class="sc-input" value="${m.cat2??''}" oninput="setMark(${id},'cat2',this.value)" placeholder="0" type="number" min="0" max="75">
+        </div>
+        <div class="sc-field"><label>Quiz <span class="mx">/ 50</span></label>
+          <input class="sc-input" value="${m.quiz??''}" oninput="setMark(${id},'quiz',this.value)" placeholder="0" type="number" min="0" max="50">
+        </div>
+        <div class="sc-field"><label>End Sem Theory <span class="mx">/ 100</span></label>
+          <input class="sc-input" value="${m.end_sem_theory??''}" oninput="setMark(${id},'end_sem_theory',this.value)" placeholder="0" type="number" min="0" max="100">
+        </div>
+        <div class="sc-field"><label>Model Lab <span class="mx">/ ${modelMax}</span></label>
+          <input class="sc-input" value="${m.model_lab??''}" oninput="setMark(${id},'model_lab',this.value)" placeholder="0" type="number" min="0" max="${modelMax}">
+        </div>
+        <div class="sc-field"><label>End Sem Prac <span class="mx">/ 100</span></label>
+          <input class="sc-input" value="${m.end_sem_practical??''}" oninput="setMark(${id},'end_sem_practical',this.value)" placeholder="0" type="number" min="0" max="100">
+        </div>
+      </div>
+      <div class="breakdown-strip" id="bd-${id}">LOT = Theory(60%) + Practical(40%) split into 4 components</div>`;
+  }
+
+  if (type === 'lab' || type === 'project') {
+    return `
+      <div class="sc-mark-grid">
+        <div class="sc-field"><label>Model Exam <span class="mx">/ 25</span></label>
+          <input class="sc-input" value="${m.model_lab??''}" oninput="setMark(${id},'model_lab',this.value)" placeholder="0" type="number" min="0" max="25">
+        </div>
+        <div class="sc-field"><label>Semester Exam <span class="mx">/ 75</span></label>
+          <input class="sc-input" value="${m.end_sem_practical??''}" oninput="setMark(${id},'end_sem_practical',this.value)" placeholder="0" type="number" min="0" max="75">
+        </div>
+      </div>
+      <div class="breakdown-strip" id="bd-${id}">Total = Model(25) + Semester(75) direct</div>`;
+  }
+
+  if (type === 'soft_skills') {
+    return `
+      <div class="sc-mark-grid">
+        <div class="sc-field"><label>CAT 1 <span class="mx">/ 100</span></label>
+          <input class="sc-input" value="${m.ss_cat1??''}" oninput="setMark(${id},'ss_cat1',this.value)" placeholder="0" type="number" min="0" max="100">
+        </div>
+        <div class="sc-field"><label>CAT 2 <span class="mx">/ 100</span></label>
+          <input class="sc-input" value="${m.ss_cat2??''}" oninput="setMark(${id},'ss_cat2',this.value)" placeholder="0" type="number" min="0" max="100">
+        </div>
+        <div class="sc-field"><label>CAT 3 <span class="mx">/ 100</span></label>
+          <input class="sc-input" value="${m.ss_cat3??''}" oninput="setMark(${id},'ss_cat3',this.value)" placeholder="0" type="number" min="0" max="100">
+        </div>
+      </div>
+      <div class="breakdown-strip" id="bd-${id}">(CAT1+CAT2+CAT3)/300×100</div>`;
+  }
+
+  if (type === 'non_credit' || type === 'internship') {
+    return `
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Non-credit — does not affect GPA. Must pass.</p>
+      <div style="display:flex;gap:8px;">
+        <button onclick="setMark(${id},'pass_fail','pass')" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--green);background:${m.pass_fail==='pass'?'var(--green)':'white'};color:${m.pass_fail==='pass'?'white':'var(--green)'};font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;">✓ Pass</button>
+        <button onclick="setMark(${id},'pass_fail','fail')" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--red);background:${m.pass_fail==='fail'?'var(--red)':'white'};color:${m.pass_fail==='fail'?'white':'var(--red)'};font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;">✕ Fail</button>
+      </div>`;
+  }
+  return '';
+}
+
+function toggleSimCard(id) {
+  const card = document.getElementById(`sc-${id}`);
+  card.classList.toggle('open');
+}
+
+function setMark(id, field, value) {
+  const s = subjects.find(x => x.id === id);
+  if (!s) return;
+  s.marks[field] = ['cat1','cat2','quiz','end_sem_theory','model_lab','end_sem_practical','ss_cat1','ss_cat2','ss_cat3'].includes(field)
+    ? parseFloat(value) || 0
+    : value;
+  recalculate();
+}
+
+async function recalculate() {
+  if (subjects.length === 0) { resetResult(); return; }
+
+  // Send to backend
+  const payload = {
+    subjects: subjects.map(s => ({
+      subject_name: s.name,
+      credits: s.credits,
+      subject_type: s.type,
+      ...s.marks
+    }))
+  };
+
+  try {
+    const res = await fetch('/api/marks/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    // Attach results back to subjects
+    subjects.forEach((s, i) => { s.result = data.subjects?.[i]; });
+
+    updateResultPanel(data);
+    // Re-render to update grade displays (without losing focus)
+    subjects.forEach(s => {
+      const card = document.getElementById(`sc-${s.id}`);
+      if (!card) return;
+      const res = s.result;
+      if (!res) return;
+      const metaEl = card.querySelector('.sc-meta');
+      if (!metaEl) return;
+      const gradeDiv = metaEl.querySelector('.sc-grade-preview');
+      const totalDiv = metaEl.querySelector('.sc-total');
+      if (gradeDiv) {
+        gradeDiv.className = `sc-grade-preview ${gradeClass(res.grade)}`;
+        gradeDiv.textContent = res.grade || '?';
+      }
+      if (totalDiv) totalDiv.textContent = parseFloat(res.total || 0).toFixed(1);
+
+      // Update card class
+      card.classList.remove('pass', 'fail', 'nc');
+      if (s.type === 'non_credit') card.classList.add('nc');
+      else card.classList.add(res.grade === 'F' ? 'fail' : 'pass');
+
+      // Update breakdown
+      const bdEl = document.getElementById(`bd-${s.id}`);
+      if (bdEl && res.breakdown) {
+        const b = res.breakdown;
+        let txt = '';
+        if (s.type === 'theory') txt = `Internal: ${(b.theory_internal_converted||0).toFixed(1)}/40 + External: ${(b.theory_external_converted||0).toFixed(1)}/60 = ${parseFloat(res.total||0).toFixed(1)}/100`;
+        else if (s.type === 'lot') txt = `Theory Int: ${(b.theory_internal||0).toFixed(1)} + Theory Ext: ${(b.theory_external||0).toFixed(1)} + Prac Int: ${(b.prac_internal||0).toFixed(1)} + Prac Ext: ${(b.prac_external||0).toFixed(1)} = ${parseFloat(res.total||0).toFixed(1)}`;
+        else if (s.type === 'lab') txt = `Model: ${b.model_25??'—'} + Semester: ${b.semester_75??'—'} = ${parseFloat(res.total||0).toFixed(1)}`;
+        else if (s.type === 'soft_skills') txt = `(${b.ss_cat1||0}+${b.ss_cat2||0}+${b.ss_cat3||0})/300×100 = ${parseFloat(res.total||0).toFixed(1)}`;
+        if (txt) bdEl.innerHTML = `<strong style="color:var(--text)">${txt}</strong>`;
+      }
+    });
+
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function updateResultPanel(data) {
+  const gpa = parseFloat(data.gpa || 0);
+  const gpaEl = document.getElementById('projGPA');
+  gpaEl.textContent = gpa ? gpa.toFixed(2) : '—';
+  gpaEl.style.color = gpa >= 8.5 ? '#f59e0b' : gpa >= 7 ? '#10b981' : gpa >= 5 ? '#f97316' : '#ef4444';
+
+  document.getElementById('projCredits').textContent =
+    `${data.total_credits || 0} credits · ${(data.subjects||[]).length} subjects`;
+  document.getElementById('projPassed').textContent = data.subjects_passed ?? '—';
+  document.getElementById('projFailed').textContent = data.subjects_failed ?? '—';
+
+  // Grade distribution
+  const gradeCounts = {};
+  (data.subjects || []).forEach(s => {
+    if (s.grade) gradeCounts[s.grade] = (gradeCounts[s.grade] || 0) + 1;
+  });
+  const allGrades = ['O','A+','A','B+','B','C+','C','F'];
+  const maxCount = Math.max(...Object.values(gradeCounts), 1);
+  document.getElementById('gradeDist').innerHTML = allGrades.map(g => {
+    const count = gradeCounts[g] || 0;
+    const pct = (count / maxCount) * 100;
+    return `
+      <div class="gd-row">
+        <div class="gd-grade" style="color:${GRADE_COLORS[g]}">${g}</div>
+        <div class="gd-bar-track">
+          <div class="gd-bar-fill" style="width:${pct}%;background:${GRADE_COLORS[g]}"></div>
+        </div>
+        <div class="gd-count">${count}</div>
+      </div>`;
+  }).join('');
+
+  // Scholars indicator
+  const scEl = document.getElementById('scholarsIndicator');
+  if (gpa >= 8.5) {
+    scEl.className = 'scholars-indicator good';
+    scEl.innerHTML = '🏆 This GPA meets the Scholars Program requirement!';
+  } else if (gpa >= 7.5) {
+    scEl.className = 'scholars-indicator';
+    scEl.innerHTML = `🎯 You need <strong>${(8.5 - gpa).toFixed(2)}</strong> more GPA to reach Scholars (8.5)`;
+  } else if (gpa > 0) {
+    scEl.className = 'scholars-indicator bad';
+    scEl.innerHTML = `📚 ${gpa < 5 ? '⚠️ Risk zone! ' : ''}Scholars requires GPA 8.5 — gap is <strong>${(8.5-gpa).toFixed(2)}</strong>`;
+  }
+
+  // What-if tip
+  const failed = (data.subjects || []).filter(s => s.grade === 'F');
+  if (failed.length > 0) {
+    document.getElementById('whatIfTip').innerHTML =
+      `<span style="color:var(--red)">⚠️ ${failed.length} subject(s) failing: ${failed.map(f=>f.subject_name).join(', ')}. Improving end-semester marks in these will significantly raise your GPA.</span>`;
+  } else if (gpa > 0 && gpa < 8.5) {
+    const needed = Math.max(0, 8.5 - gpa);
+    document.getElementById('whatIfTip').innerHTML =
+      `You need <strong>${needed.toFixed(2)}</strong> more GPA to reach Scholars. Try increasing end-semester marks in your LOT or Theory subjects for maximum impact.`;
+  } else if (gpa >= 8.5) {
+    document.getElementById('whatIfTip').innerHTML =
+      `🎉 Excellent! This simulation places you in the Scholars Program. Maintain this performance!`;
+  }
+}
+
+function resetResult() {
+  document.getElementById('projGPA').textContent = '—';
+  document.getElementById('projCredits').textContent = 'Add subjects to calculate';
+  document.getElementById('projPassed').textContent = '—';
+  document.getElementById('projFailed').textContent = '—';
+  document.getElementById('gradeDist').innerHTML = '<div style="font-size:13px;color:var(--muted);text-align:center;padding:12px;">No data yet</div>';
+}
+
+function clearAll() {
+  subjects = [];
+  subjectCounter = 0;
+  renderSubjects();
+  resetResult();
+  toast('Simulator cleared', 'success');
+}
+
+async function runSimulation() {
+  if (subjects.length === 0) { toast('Add subjects first', 'error'); return; }
+  await recalculate();
+  toast('Simulation updated!', 'success');
+}
+
+// Auto-open first card
+function init() {
+  initSidebar();
+}
+
+init();
+</script>
+</body>
+</html>

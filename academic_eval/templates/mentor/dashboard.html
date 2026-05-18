@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mentor Dashboard — Academic Evaluation</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% include 'shared/base.html' %}
+<style>
+/* Mentor Stats */
+.mentor-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.mstat {
+  background: white;
+  border-radius: 14px;
+  padding: 20px;
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.mstat-icon {
+  width: 46px; height: 46px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.mstat-val { font-family: 'DM Serif Display', serif; font-size: 28px; line-height: 1; }
+.mstat-lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* Filter bar */
+.filter-bar {
+  display: flex; gap: 10px; align-items: center;
+  margin-bottom: 20px; flex-wrap: wrap;
+}
+.filter-chip {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: white;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--muted);
+}
+.filter-chip:hover { border-color: var(--blue); color: var(--blue); }
+.filter-chip.active { background: var(--navy); border-color: var(--navy); color: white; }
+.filter-chip.risk.active { background: var(--red); border-color: var(--red); }
+.filter-chip.warn.active { background: var(--orange); border-color: var(--orange); }
+.filter-chip.scholar.active { background: var(--gold); border-color: var(--gold); color: var(--navy); }
+.filter-chip.good.active { background: var(--green); border-color: var(--green); }
+
+/* Student cards grid */
+.students-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.student-tile {
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.student-tile::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 3px;
+  background: var(--tile-accent, var(--blue));
+}
+.student-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+.student-tile.scholars { --tile-accent: var(--gold); border-color: rgba(245,158,11,0.3); background: #fffdf5; }
+.student-tile.good     { --tile-accent: var(--green); }
+.student-tile.warning  { --tile-accent: var(--orange); border-color: rgba(249,115,22,0.3); }
+.student-tile.risk     { --tile-accent: var(--red); border-color: rgba(239,68,68,0.3); background: #fff8f8; }
+
+.tile-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+.tile-avatar {
+  width: 42px; height: 42px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 16px; font-weight: 700; flex-shrink: 0;
+}
+.tile-name-wrap { flex: 1; padding-left: 12px; }
+.tile-name { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.tile-reg { font-size: 11px; color: var(--muted); }
+
+.tile-cgpa-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.tile-cgpa { font-family: 'DM Serif Display', serif; font-size: 32px; line-height: 1; }
+.tile-meta { text-align: right; }
+.tile-meta .tm-val { font-size: 14px; font-weight: 700; color: var(--text); }
+.tile-meta .tm-lbl { font-size: 10px; color: var(--muted); }
+
+/* Mini GPA bar */
+.gpa-mini-bar { height: 6px; background: var(--bg); border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+.gpa-mini-fill { height: 100%; border-radius: 6px; transition: width 0.8s ease; }
+
+.tile-footer { display: flex; gap: 6px; flex-wrap: wrap; }
+.tile-action {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.15s;
+}
+.tile-action:hover { background: var(--bg); }
+.tile-action.primary { background: var(--navy); color: white; border-color: var(--navy); }
+.tile-action.primary:hover { background: #1e3a6e; }
+
+/* Student detail panel (slide in) */
+.detail-panel {
+  position: fixed;
+  top: 0; right: -460px;
+  width: 440px; height: 100vh;
+  background: white;
+  box-shadow: -4px 0 32px rgba(0,0,0,0.15);
+  z-index: 200;
+  transition: right 0.3s ease;
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.detail-panel.open { right: 0; }
+.panel-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 199;
+  backdrop-filter: blur(2px);
+}
+.panel-overlay.open { display: block; }
+
+.dp-header {
+  padding: 24px;
+  background: var(--navy);
+  color: white;
+  flex-shrink: 0;
+}
+.dp-close {
+  float: right; background: none; border: none;
+  font-size: 22px; color: rgba(255,255,255,0.6);
+  cursor: pointer; margin-top: -4px;
+}
+.dp-close:hover { color: white; }
+.dp-name { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.dp-reg  { font-size: 12px; color: rgba(255,255,255,0.55); }
+.dp-cgpa-row {
+  display: flex; gap: 16px; margin-top: 16px;
+}
+.dp-cgpa-item { text-align: center; flex: 1; background: rgba(255,255,255,0.08); border-radius: 10px; padding: 10px; }
+.dp-cgpa-item .dci-val { font-family: 'DM Serif Display', serif; font-size: 24px; }
+.dp-cgpa-item .dci-lbl { font-size: 10px; color: rgba(255,255,255,0.5); }
+
+.dp-body { padding: 20px; flex: 1; }
+.dp-section { margin-bottom: 20px; }
+.dp-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 12px; }
+
+/* Notes */
+.note-item {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  position: relative;
+}
+.note-date { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.note-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 80px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.note-input:focus { border-color: var(--blue); }
+
+/* Share link */
+.share-link-box {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 14px;
+}
+.share-link-url {
+  font-size: 12px;
+  color: var(--blue);
+  word-break: break-all;
+  margin-bottom: 10px;
+  font-family: monospace;
+}
+
+@media (max-width: 1024px) {
+  .mentor-stats { grid-template-columns: repeat(2, 1fr); }
+  .detail-panel { width: 100%; right: -100%; }
+}
+@media (max-width: 600px) {
+  .students-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- Student Detail Panel -->
+<div class="panel-overlay" id="panelOverlay" onclick="closeDetailPanel()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="dp-header">
+    <button class="dp-close" onclick="closeDetailPanel()">×</button>
+    <div class="dp-name" id="dpName">—</div>
+    <div class="dp-reg" id="dpReg">—</div>
+    <div class="dp-cgpa-row">
+      <div class="dp-cgpa-item">
+        <div class="dci-val" id="dpCgpa">—</div>
+        <div class="dci-lbl">CGPA</div>
+      </div>
+      <div class="dp-cgpa-item">
+        <div class="dci-val" id="dpArrears">—</div>
+        <div class="dci-lbl">Arrears</div>
+      </div>
+      <div class="dp-cgpa-item">
+        <div class="dci-val" id="dpSem">—</div>
+        <div class="dci-lbl">Semester</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dp-body">
+    <!-- Status -->
+    <div class="dp-section">
+      <div class="dp-section-title">Academic Status</div>
+      <div id="dpStatus">—</div>
+    </div>
+
+    <!-- Sem GPA History -->
+    <div class="dp-section">
+      <div class="dp-section-title">GPA History</div>
+      <div id="dpGpaHistory"></div>
+    </div>
+
+    <!-- Notes -->
+    <div class="dp-section">
+      <div class="dp-section-title">Mentor Notes (Private)</div>
+      <div id="dpNotes"></div>
+      <textarea class="note-input" id="noteInput" placeholder="Add a private note about this student..."></textarea>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="addNote()">💬 Add Note</button>
+    </div>
+
+    <!-- Parent Share Link -->
+    <div class="dp-section">
+      <div class="dp-section-title">Parent Share Link</div>
+      <div id="dpShareLink">
+        <button class="btn btn-outline btn-sm" onclick="generateShareLink()">🔗 Generate 7-day Link</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">R</div>
+    <div>
+      <div class="logo-name">REC Academic</div>
+      <div class="logo-dept">Mentor Portal</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">My Students</div>
+  <a class="nav-item active" href="/mentor/dashboard"><span class="nav-icon">🏠</span> Dashboard</a>
+  <a class="nav-item" href="#at-risk"><span class="nav-icon">🔴</span> At Risk <span class="nav-badge" id="riskBadge" style="display:none">0</span></a>
+  <a class="nav-item" href="#warning"><span class="nav-icon">🟡</span> Warning</a>
+  <a class="nav-item" href="#scholars"><span class="nav-icon">🏆</span> Scholars</a>
+
+  <div class="sidebar-section">Tools</div>
+  <a class="nav-item" href="#"><span class="nav-icon">📊</span> Class Analytics</a>
+  <a class="nav-item" href="#"><span class="nav-icon">📄</span> Evaluation Reports</a>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user" id="sidebarUser">
+      <div class="user-avatar">MT</div>
+      <div class="user-info">
+        <div class="user-name">Mentor</div>
+        <div class="user-role">Mentor</div>
+      </div>
+      <button class="btn-logout" onclick="logout()">⎋</button>
+    </div>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main-content">
+  <div class="topbar">
+    <div class="topbar-title">👨‍🏫 My Students</div>
+    <div class="topbar-right">
+      <span id="topbarStudentCount" style="font-size:13px;color:var(--muted);">Loading...</span>
+    </div>
+  </div>
+
+  <div class="page-body">
+
+    <!-- Mentor Stats -->
+    <div class="mentor-stats">
+      <div class="mstat">
+        <div class="mstat-icon" style="background:#eff6ff">👥</div>
+        <div>
+          <div class="mstat-val" id="mstatTotal">—</div>
+          <div class="mstat-lbl">My Students</div>
+        </div>
+      </div>
+      <div class="mstat">
+        <div class="mstat-icon" style="background:var(--gold-light)">🏆</div>
+        <div>
+          <div class="mstat-val" id="mstatScholars">—</div>
+          <div class="mstat-lbl">Scholars Members</div>
+        </div>
+      </div>
+      <div class="mstat">
+        <div class="mstat-icon" style="background:var(--orange-light)">⚠️</div>
+        <div>
+          <div class="mstat-val" id="mstatWarning">—</div>
+          <div class="mstat-lbl">Academic Warning</div>
+        </div>
+      </div>
+      <div class="mstat">
+        <div class="mstat-icon" style="background:var(--red-light)">🚨</div>
+        <div>
+          <div class="mstat-val" id="mstatRisk">—</div>
+          <div class="mstat-lbl">At Risk (CGPA &lt;5)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Class avg CGPA bar -->
+    <div class="card" style="margin-bottom:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="card-title" style="margin-bottom:0">📊 Cohort CGPA — My Students</div>
+        <div style="font-size:13px;color:var(--muted)">Class Average: <strong id="avgCgpa" style="color:var(--blue)">—</strong></div>
+      </div>
+      <div style="height:220px;"><canvas id="cohortChart"></canvas></div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <span style="font-size:13px;font-weight:600;color:var(--muted)">Filter:</span>
+      <button class="filter-chip active" onclick="setFilter('all', this)">All Students</button>
+      <button class="filter-chip scholar" onclick="setFilter('scholars', this)">🏆 Scholars</button>
+      <button class="filter-chip good" onclick="setFilter('good', this)">✅ Good Standing</button>
+      <button class="filter-chip warn" onclick="setFilter('warning', this)">⚠️ Warning</button>
+      <button class="filter-chip risk" onclick="setFilter('risk', this)">🔴 At Risk</button>
+      <input type="text" style="margin-left:auto;padding:8px 14px;border:1.5px solid var(--border);border-radius:20px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;width:200px;"
+        placeholder="Search student..." id="studentSearch" oninput="renderGrid()">
+    </div>
+
+    <!-- Students Grid -->
+    <div class="students-grid" id="studentsGrid">
+      <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted);">Loading your students...</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let allStudents = [];
+let currentFilter = 'all';
+let activeStudentId = null;
+let cohortChart = null;
+
+async function init() {
+  initSidebar();
+  const data = await API.get('/api/mentor/dashboard');
+  if (!data) return;
+
+  allStudents = data.students || [];
+
+  // Stats
+  document.getElementById('mstatTotal').textContent    = data.total;
+  document.getElementById('mstatScholars').textContent = data.scholars_count;
+  document.getElementById('mstatWarning').textContent  = data.warning;
+  document.getElementById('mstatRisk').textContent     = data.at_risk;
+  document.getElementById('avgCgpa').textContent       = (data.avg_cgpa || 0).toFixed(2);
+  document.getElementById('topbarStudentCount').textContent = `${data.total} students assigned`;
+
+  if (data.at_risk > 0) {
+    const badge = document.getElementById('riskBadge');
+    badge.textContent = data.at_risk;
+    badge.style.display = 'block';
+  }
+
+  renderCohortChart(allStudents);
+  renderGrid();
+}
+
+function renderCohortChart(students) {
+  const ctx = document.getElementById('cohortChart').getContext('2d');
+  const sorted = [...students].sort((a,b) => (b.cgpa||0) - (a.cgpa||0));
+  const labels = sorted.map(s => s.name.split(' ')[0]);
+  const values = sorted.map(s => parseFloat(s.cgpa || 0));
+
+  cohortChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: values.map(v =>
+          v >= 8.5 ? '#f59e0b' : v >= 7 ? '#22c55e' : v >= 5 ? '#f97316' : '#ef4444'),
+        borderRadius: 6, borderSkipped: false
+      }, {
+        data: Array(labels.length).fill(8.5),
+        type: 'line',
+        borderColor: 'rgba(245,158,11,0.5)',
+        borderDash: [5,4],
+        pointRadius: 0,
+        fill: false,
+        label: 'Scholars Target'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 0, max: 10, ticks: { stepSize: 2, font: { size: 11 } }, grid: { color: '#f1f5f9' } },
+        x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function setFilter(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
+
+function renderGrid() {
+  const search = document.getElementById('studentSearch').value.toLowerCase();
+
+  let filtered = allStudents.filter(s => {
+    const cgpa = parseFloat(s.cgpa || 0);
+    const matchSearch = !search || s.name.toLowerCase().includes(search) || s.reg_no?.toLowerCase().includes(search);
+    if (!matchSearch) return false;
+    if (currentFilter === 'scholars') return cgpa >= 8.5 && (s.cgpa_record?.standing_arrears || 0) === 0;
+    if (currentFilter === 'good')    return cgpa >= 7.0 && cgpa < 8.5;
+    if (currentFilter === 'warning') return cgpa >= 5.0 && cgpa < 7.0;
+    if (currentFilter === 'risk')    return cgpa < 5.0;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    document.getElementById('studentsGrid').innerHTML =
+      '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--muted);">No students match this filter.</div>';
+    return;
+  }
+
+  document.getElementById('studentsGrid').innerHTML = filtered.map(s => {
+    const cgpa = parseFloat(s.cgpa || 0);
+    const arrears = s.cgpa_record?.standing_arrears || 0;
+    const initials = s.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+    const barPct = Math.min(cgpa / 10 * 100, 100);
+    const color = cgpaColor(cgpa);
+
+    const tileClass = cgpa >= 8.5 ? 'scholars' : cgpa >= 7 ? 'good' : cgpa >= 5 ? 'warning' : 'risk';
+    const statusBadge = cgpa >= 8.5
+      ? '<span class="pill pill-gold">🏆 Scholars</span>'
+      : cgpa >= 7 ? '<span class="pill pill-green">✅ Good</span>'
+      : cgpa >= 5 ? '<span class="pill pill-orange">⚠️ Warning</span>'
+      : '<span class="pill pill-red">🚨 At Risk</span>';
+
+    const scholarInfo = s.scholars_info;
+    const gapText = scholarInfo?.gap > 0
+      ? `<span style="font-size:10px;color:${color};margin-top:3px;display:block;">${scholarInfo.gap.toFixed(2)} pts from Scholars</span>`
+      : '';
+
+    return `
+      <div class="student-tile ${tileClass}" onclick="openDetailPanel(${s.id})">
+        <div class="tile-header">
+          <div class="tile-avatar">${initials}</div>
+          <div class="tile-name-wrap">
+            <div class="tile-name">${s.name}</div>
+            <div class="tile-reg">${s.reg_no}</div>
+          </div>
+          ${statusBadge}
+        </div>
+        <div class="tile-cgpa-row">
+          <div class="tile-cgpa" style="color:${color}">${cgpa.toFixed(2)}</div>
+          <div class="tile-meta">
+            <div class="tm-val" style="color:${arrears > 0 ? 'var(--red)' : 'var(--green)'}">${arrears}</div>
+            <div class="tm-lbl">Arrears</div>
+          </div>
+        </div>
+        ${gapText}
+        <div class="gpa-mini-bar">
+          <div class="gpa-mini-fill" style="width:${barPct}%;background:${color}"></div>
+        </div>
+        <div class="tile-footer">
+          <button class="tile-action primary" onclick="event.stopPropagation();openDetailPanel(${s.id})">View Details</button>
+          <button class="tile-action" onclick="event.stopPropagation();quickNote(${s.id})">💬 Note</button>
+          <button class="tile-action" onclick="event.stopPropagation();quickShareLink(${s.id}, '${s.name}')">🔗 Share</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function openDetailPanel(studentId) {
+  activeStudentId = studentId;
+  const s = allStudents.find(x => x.id === studentId);
+  if (!s) return;
+
+  const cgpa = parseFloat(s.cgpa || 0);
+  document.getElementById('dpName').textContent = s.name;
+  document.getElementById('dpReg').textContent  = `${s.reg_no} | ${s.department?.name || 'CSE'}`;
+  document.getElementById('dpCgpa').textContent = cgpa.toFixed(2);
+  document.getElementById('dpArrears').textContent = s.cgpa_record?.standing_arrears || 0;
+  document.getElementById('dpSem').textContent  = `Sem ${s.current_semester}`;
+
+  // Status
+  const sc = s.scholars_info;
+  document.getElementById('dpStatus').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="font-size:14px;font-weight:600;color:${sc?.color || 'var(--text)'}">${sc?.message || '—'}</div>
+      <div style="font-size:12px;color:var(--muted)">${sc?.sub_message || ''}</div>
+    </div>`;
+
+  // GPA History (from sem_gpas in student data — simplified)
+  document.getElementById('dpGpaHistory').innerHTML =
+    `<div style="font-size:12px;color:var(--muted)">Check student's full record in semester view.</div>`;
+
+  // Load notes
+  await loadNotes(studentId);
+
+  // Reset share link
+  document.getElementById('dpShareLink').innerHTML =
+    `<button class="btn btn-outline btn-sm" onclick="generateShareLink()">🔗 Generate 7-day Link</button>`;
+
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('panelOverlay').classList.add('open');
+}
+
+function closeDetailPanel() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('panelOverlay').classList.remove('open');
+  activeStudentId = null;
+}
+
+async function loadNotes(studentId) {
+  const notes = await API.get(`/api/mentor/students/${studentId}/notes`);
+  const el = document.getElementById('dpNotes');
+  if (!notes || notes.length === 0) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">No notes yet.</div>';
+    return;
+  }
+  el.innerHTML = notes.map(n => `
+    <div class="note-item">
+      ${n.note}
+      <div class="note-date">${new Date(n.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })} — ${n.mentor_name}</div>
+    </div>`).join('');
+}
+
+async function addNote() {
+  if (!activeStudentId) return;
+  const note = document.getElementById('noteInput').value.trim();
+  if (!note) { toast('Note cannot be empty', 'error'); return; }
+
+  const res = await API.post(`/api/mentor/students/${activeStudentId}/notes`, {
+    note, is_private: true
+  });
+
+  if (res?.ok) {
+    document.getElementById('noteInput').value = '';
+    await loadNotes(activeStudentId);
+    toast('Note added', 'success');
+  } else {
+    toast('Failed to add note', 'error');
+  }
+}
+
+async function generateShareLink() {
+  if (!activeStudentId) return;
+  const res = await API.post(`/api/mentor/students/${activeStudentId}/share-link`, {});
+  if (res?.ok) {
+    const url = `${window.location.origin}${res.data.link}`;
+    document.getElementById('dpShareLink').innerHTML = `
+      <div class="share-link-box">
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">🔗 Share this link with parents (expires in 7 days):</div>
+        <div class="share-link-url">${url}</div>
+        <button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText('${url}').then(()=>toast('Link copied!','success'))">📋 Copy Link</button>
+      </div>`;
+    toast('Share link generated!', 'success');
+  } else {
+    toast('Failed to generate link', 'error');
+  }
+}
+
+function quickNote(studentId) {
+  openDetailPanel(studentId);
+  setTimeout(() => document.getElementById('noteInput')?.focus(), 400);
+}
+
+function quickShareLink(studentId, name) {
+  openDetailPanel(studentId);
+  setTimeout(() => generateShareLink(), 400);
+}
+
+init();
+</script>
+</body>
+</html>
